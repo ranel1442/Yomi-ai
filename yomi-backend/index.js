@@ -49,21 +49,32 @@ app.post('/api/webhook/lemonsqueezy', express.raw({ type: 'application/json' }),
     // טיפול באירועי יצירת מנוי או עדכון מנוי
     if (eventName === 'subscription_created' || eventName === 'subscription_updated') {
       const status = payload.data.attributes.status; 
-      // המנוי פעיל אם הסטטוס הוא active (או on_trial אם תחליט להוסיף בעתיד)
       const isPro = status === 'active' || status === 'on_trial';
 
-            // עדכון הסטטוס בטבלת המשתמשים בסופהבייס
-      // חפש את הקטע הזה בערך בשורה 55 ותחליף אותו בזה:
       const { error } = await supabase
-        .from('profiles') // שם הטבלה כפי שראינו בצילום
-        .update({ is_pro: isPro }) // העמודה החדשה שיצרת הרגע
-        .eq('user_id', userId); // ⚠️ שינינו מ-'id' ל-'user_id' כדי שיתאים לטבלה שלך!
+        .from('profiles')
+        .update({ is_pro: isPro })
+        .eq('user_id', userId);
+        
       if (error) {
         console.error('❌ שגיאה בעדכון סופהבייס:', error);
         throw error;
       }
-      
       console.log(`👑 משתמש ${userId} עודכן לסטטוס PRO: ${isPro}`);
+    }
+
+    // 🌟 הוספנו: טיפול בפקיעת מנוי או ביטול סופי
+    if (eventName === 'subscription_cancelled' || eventName === 'subscription_expired') {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_pro: false }) // מחזירים למשתמש חינמי
+        .eq('user_id', userId);
+        
+      if (error) {
+        console.error('❌ שגיאה בהסרת סטטוס PRO:', error);
+        throw error;
+      }
+      console.log(`🔻 משתמש ${userId} איבד את סטטוס ה-PRO שלו (מנוי בוטל/פג)`);
     }
 
     res.status(200).send('Webhook processed successfully');
