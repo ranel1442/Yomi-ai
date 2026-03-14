@@ -14,25 +14,36 @@ export default function PricingPage() {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
   // הפונקציה: מעבר לתשלום ב-Lemon Squeezy
+// הפונקציה: מעבר לתשלום ב-Lemon Squeezy
   const handleSubscribe = () => {
     if (!user || !user.id) {
       router.push('/login');
       return;
     }
     
-    setIsCheckoutLoading(true);
-    
-    // הקישורים מהחנות שלך
-    const monthlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/66fffbaf-5101-45bc-b1cb-069fc568e0af';
-    const yearlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/5fd418e2-8fad-4950-b639-aa40d1413349';
+    try {
+      setIsCheckoutLoading(true);
+      console.log("מתחיל מעבר לקופה...");
+      
+      // הקישורים מהחנות שלך
+      const monthlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/66fffbaf-5101-45bc-b1cb-069fc568e0af';
+      const yearlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/5fd418e2-8fad-4950-b639-aa40d1413349';
 
-    const baseUrl = isAnnual ? yearlyUrl : monthlyUrl;
+      const baseUrl = isAnnual ? yearlyUrl : monthlyUrl;
 
-    // משרשרים את ה-ID של המשתמש כדי שהוובהוק יידע מי שילם
-    const checkoutUrl = `${baseUrl}?checkout[custom][user_id]=${user.id}`;
+      // משרשרים את ה-ID של המשתמש כדי שהוובהוק יידע מי שילם
+      const checkoutUrl = `${baseUrl}?checkout[custom][user_id]=${user.id}`;
+      
+      console.log("מעביר לכתובת:", checkoutUrl);
 
-    // מעבירים את הלקוח לעמוד התשלום
-    window.location.href = checkoutUrl;
+      // שימוש ב-assign מבטיח שהדפדפן יכפה את המעבר
+      window.location.assign(checkoutUrl);
+      
+    } catch (error) {
+      console.error("שגיאה במעבר לקופה:", error);
+      setIsCheckoutLoading(false);
+      alert('אירעה שגיאה במעבר לקופה. נסה לרענן את העמוד.');
+    }
   };
 
   // הפונקציה: ניהול מנוי ב-Lemon Squeezy
