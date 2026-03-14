@@ -52,12 +52,12 @@ app.post('/api/webhook/lemonsqueezy', express.raw({ type: 'application/json' }),
       // המנוי פעיל אם הסטטוס הוא active (או on_trial אם תחליט להוסיף בעתיד)
       const isPro = status === 'active' || status === 'on_trial';
 
-      // עדכון הסטטוס בטבלת המשתמשים בסופהבייס
+            // עדכון הסטטוס בטבלת המשתמשים בסופהבייס
+      // חפש את הקטע הזה בערך בשורה 55 ותחליף אותו בזה:
       const { error } = await supabase
-        .from('users') // ודא שזה שם טבלת המשתמשים שלך
-        .update({ is_pro: isPro })
-        .eq('id', userId);
-
+        .from('profiles') // שם הטבלה כפי שראינו בצילום
+        .update({ is_pro: isPro }) // העמודה החדשה שיצרת הרגע
+        .eq('user_id', userId); // ⚠️ שינינו מ-'id' ל-'user_id' כדי שיתאים לטבלה שלך!
       if (error) {
         console.error('❌ שגיאה בעדכון סופהבייס:', error);
         throw error;
