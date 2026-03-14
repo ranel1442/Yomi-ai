@@ -7,14 +7,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 export default function PricingPage() {
-  // אנחנו שולפים את isPro ישירות מה-Hook המעודכן!
   const { user, isPro, loading: authLoading } = useAuth();
   const router = useRouter();
   const [isAnnual, setIsAnnual] = useState(true);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
   // הפונקציה: מעבר לתשלום ב-Lemon Squeezy
-// הפונקציה: מעבר לתשלום ב-Lemon Squeezy
   const handleSubscribe = () => {
     if (!user || !user.id) {
       router.push('/login');
@@ -23,21 +21,19 @@ export default function PricingPage() {
     
     try {
       setIsCheckoutLoading(true);
-      console.log("מתחיל מעבר לקופה...");
       
-      // הקישורים מהחנות שלך
       const monthlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/66fffbaf-5101-45bc-b1cb-069fc568e0af';
       const yearlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/5fd418e2-8fad-4950-b639-aa40d1413349';
 
       const baseUrl = isAnnual ? yearlyUrl : monthlyUrl;
-
-      // משרשרים את ה-ID של המשתמש כדי שהוובהוק יידע מי שילם
       const checkoutUrl = `${baseUrl}?checkout[custom][user_id]=${user.id}`;
       
-      console.log("מעביר לכתובת:", checkoutUrl);
-
-      // שימוש ב-assign מבטיח שהדפדפן יכפה את המעבר
       window.location.assign(checkoutUrl);
+      
+      // 🌟 התיקון: מכבים את הספינר אחרי 2 שניות למקרה שהמשתמש יחזור אחורה
+      setTimeout(() => {
+        setIsCheckoutLoading(false);
+      }, 2000);
       
     } catch (error) {
       console.error("שגיאה במעבר לקופה:", error);
@@ -49,8 +45,12 @@ export default function PricingPage() {
   // הפונקציה: ניהול מנוי ב-Lemon Squeezy
   const handleManageSubscription = () => {
     setIsCheckoutLoading(true);
-    // מעביר את הלקוח לפורטל הלקוחות של Lemon Squeezy
     window.location.href = 'https://app.lemonsqueezy.com/my-orders';
+    
+    // 🌟 התיקון גם כאן
+    setTimeout(() => {
+      setIsCheckoutLoading(false);
+    }, 2000);
   };
 
   if (authLoading) {
