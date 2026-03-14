@@ -1,43 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { Bot, Scale, Code2 } from 'lucide-react';
 
-// 🌟 ייבוא הפונקציות שאנחנו צריכים (שנה את הנתיבים בהתאם למיקום הקובץ שלך!)
+// 🌟 ייבוא ה-Hook החדש והנקי שלנו
 import { useAuth } from '../hooks/useAuth'; 
-import { createPortalSession } from '../services/api';
 
 export default function Footer() {
-  const { user } = useAuth();
-  const [isPro, setIsPro] = useState(false);
+  // 🌟 מושכים ישירות את user ואת isPro (אין צורך ב-useEffect ידני)
+  const { user, isPro } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
-  // בדיקה אם המשתמש הוא מנוי פרו
-  useEffect(() => {
-    if (user && user.user_metadata?.is_pro) {
-      setIsPro(true);
-    } else {
-      setIsPro(false);
-    }
-  }, [user]);
-
-  // הפונקציה ששולחת את הלקוח לפורטל הביטול בסטרייפ
-  const handleCancelSubscription = async () => {
-    if (!user || !user.user_metadata?.stripe_customer_id) {
-      alert('לא נמצא מזהה לקוח במערכת.');
-      return;
-    }
-
+  // הפונקציה המעודכנת שמעבירה לפורטל של Lemon Squeezy
+  const handleCancelSubscription = () => {
     setIsLoading(true);
-    try {
-      const portalUrl = await createPortalSession(user.user_metadata.stripe_customer_id);
-      window.location.href = portalUrl;
-    } catch (error) {
-      console.error(error);
-      alert('אירעה שגיאה בפתיחת אזור הביטול.');
-      setIsLoading(false);
-    }
+    // מעביר ישירות לאזור האישי של הלקוח ב-Lemon Squeezy לניהול/ביטול המנוי
+    window.location.href = 'https://app.lemonsqueezy.com/my-orders';
   };
 
   return (
@@ -74,7 +53,7 @@ export default function Footer() {
         {/* שורת קישורים משפטיים ורגולציה (חובה!) */}
         <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-3 mb-8 text-sm font-semibold">
           
-          {/* 🌟 מציגים את כפתור הביטול אך ורק למשתמשי PRO */}
+          {/* 🌟 כפתור ביטול ל-PRO בלבד, עכשיו עובד מול Lemon Squeezy */}
           {isPro && (
             <>
               <button 
@@ -82,7 +61,7 @@ export default function Footer() {
                 disabled={isLoading}
                 className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors font-semibold disabled:opacity-50"
               >
-                {isLoading ? 'מעביר לאזור ביטול...' : 'ביטול עסקה'}
+                {isLoading ? 'מעביר לאזור ניהול...' : 'ניהול / ביטול מנוי'}
               </button>
               <span className="hidden sm:inline text-gray-300 dark:text-gray-700">•</span>
             </>

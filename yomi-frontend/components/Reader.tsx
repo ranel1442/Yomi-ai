@@ -36,7 +36,8 @@ interface ReaderProps {
 type FuriganaMode = 'all' | 'firstTime' | 'none';
 
 export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
-  const { user } = useAuth();
+  // 🌟 מושכים את isPro ישירות מה-Hook!
+  const { user, isPro } = useAuth();
   const router = useRouter();
 
   const [selectedWord, setSelectedWord] = useState<Word | null>(null);
@@ -61,19 +62,10 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
   const [quizScore, setQuizScore] = useState(0);
   const [isQuizFinished, setIsQuizFinished] = useState(false);
 
-  // 🌟 סטייטים עבור מנוי PRO
-  const [isPro, setIsPro] = useState(false);
+  // סטייט לפופ-אפ שדרוג
   const [showProModal, setShowProModal] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // בדיקה האם המשתמש הוא PRO
-  useEffect(() => {
-    if (user) {
-      const metadata = user.user_metadata || {};
-      setIsPro(metadata.is_pro === true);
-    }
-  }, [user]);
 
   useEffect(() => {
     return () => {

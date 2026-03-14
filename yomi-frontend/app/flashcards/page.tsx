@@ -8,7 +8,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 export default function FlashcardsPage() {
-  const { user, loading: authLoading } = useAuth();
+  // 🌟 כאן מושכים את isPro מה-Hook החדש שלנו!
+  const { user, isPro, loading: authLoading } = useAuth();
+  
   const router = useRouter();
   const [flashcards, setFlashcards] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -16,15 +18,7 @@ export default function FlashcardsPage() {
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      const metadata = user.user_metadata || {};
-      setIsPro(metadata.is_pro === true);
-    }
-  }, [user]);
 
   useEffect(() => {
     const fetchCards = async () => {

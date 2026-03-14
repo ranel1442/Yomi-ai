@@ -7,7 +7,8 @@ import { supabase } from '../../services/supabase';
 import Link from 'next/link';
 
 export default function SettingsPage() {
-  const { user, loading: authLoading } = useAuth();
+  // 🌟 מושכים את isPro ישירות מה-Hook!
+  const { user, isPro, loading: authLoading } = useAuth();
   
   const [newPassword, setNewPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
@@ -16,7 +17,6 @@ export default function SettingsPage() {
   const [defaultLevel, setDefaultLevel] = useState('N5');
   const [isSavedLevel, setIsSavedLevel] = useState(false);
   
-  const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
   
   // סטייט למחיקת חשבון
@@ -24,16 +24,12 @@ export default function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
+    // טוען את הרמה השמורה רק פעם אחת כשהעמוד עולה
     const savedLevel = localStorage.getItem('defaultJlptLevel');
     if (savedLevel) {
       setDefaultLevel(savedLevel);
     }
-    
-    if (user) {
-      const metadata = user.user_metadata || {};
-      setIsPro(metadata.is_pro === true);
-    }
-  }, [user]);
+  }, []);
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,9 +134,9 @@ export default function SettingsPage() {
                   <span className="inline-flex items-center bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-4 py-2 rounded-full text-sm font-bold">
                     משתמש חינמי
                   </span>
-                  <button className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">
+                  <Link href="/pricing" className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">
                     שדרג עכשיו
-                  </button>
+                  </Link>
                 </div>
               )}
             </div>
