@@ -3,57 +3,70 @@ import { supabase } from '../services/supabase';
 
 export function useAuth() {
   const [user, setUser] = useState<any>(null);
-  // 🌟 משתנה חדש ששומר את סטטוס הפרו של המשתמש
-  const [isPro, setIsPro] = useState<boolean>(false); 
+  const [isPro, setIsPro] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // משיכת המשתמש והפרופיל הראשוני מיד כשהעמוד עולה
-    const fetchSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = session?.user || null;
-      setUser(currentUser);
+    let mounted = true; // מונע עדכוני סטייט אחרי שהקומפוננטה נסגרת
 
-      // 🌟 אם יש משתמש מחובר, מושכים את סטטוס הפרו שלו מהטבלה החדשה!
-      if (currentUser) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_pro')
-          .eq('user_id', currentUser.id)
-          .single();
+    const fetchSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const currentUser = session?.user || null;
         
-        setIsPro(profile?.is_pro === true);
-      } else {
-        setIsPro(false);
+        if (mounted) setUser(currentUser);
+
+        if (currentUser) {
+          // משיכת הפרופיל בזהירות
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_pro')
+            .eq('user_id', currentUser.id)
+            .single();
+
+          if (mounted) setIsPro(profile?.is_pro === true);
+        } else {
+          if (mounted) setIsPro(false);
+        }
+      } catch (error) {
+        console.error("Auth error:", error); // אם תהיה בעיה אמיתית, עכשיו נראה אותה!
+      } finally {
+        // החלק הכי חשוב: לא משנה מה קרה בדרך, תמיד תכבה את הטעינה!
+        if (mounted) setLoading(false);
       }
-      
-      setLoading(false);
     };
-    
+
     fetchSession();
 
-    // האזנה אקטיבית לשינויי מצב
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user || null;
-      setUser(currentUser);
-      
-      // 🌟 מעדכנים את סטטוס הפרו גם כשהמשתמש מתחבר/מתנתק
+      if (mounted) setUser(currentUser);
+
       if (currentUser) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_pro')
-          .eq('user_id', currentUser.id)
-          .single();
-        
-        setIsPro(profile?.is_pro === true);
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_pro')
+            .eq('user_id', currentUser.id)
+            .single();
+
+          if (mounted) setIsPro(profile?.is_pro === true);
+        } catch (err) {
+          // מתעלמים משגיאות שקטות כאן
+        }
       } else {
-        setIsPro(false);
+        if (mounted) setIsPro(false);
       }
+      
+      // מכבה טעינה גם בשינוי מצב התחברות
+      if (mounted) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
-  // 🌟 עכשיו ה-hook מחזיר גם את isPro לכל האתר!
   return { user, isPro, loading };
 }
