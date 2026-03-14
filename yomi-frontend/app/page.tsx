@@ -9,7 +9,9 @@ import { useAuth } from '../hooks/useAuth';
 import Link from 'next/link';
 
 export default function Home() {
-  const { user, loading: authLoading } = useAuth();
+  // 🌟 כאן מושכים את isPro מה-Hook החדש שלנו!
+  const { user, isPro, loading: authLoading } = useAuth();
+  
   const [text, setText] = useState('');
   const [level, setLevel] = useState('N5');
   const [isLoading, setIsLoading] = useState(false);
@@ -18,7 +20,6 @@ export default function Home() {
   const [stats, setStats] = useState({ stories: 0, words: 0 });
   const [isStatsLoading, setIsStatsLoading] = useState(true);
 
-  const [isPro, setIsPro] = useState(false);
   const [dailyCount, setDailyCount] = useState(0);
   const [showProModal, setShowProModal] = useState(false);
 
@@ -28,8 +29,8 @@ export default function Home() {
 
     if (user) {
       const metadata = user.user_metadata || {};
-      setIsPro(metadata.is_pro === true);
       
+      // ספירת סיפורים יומית למשתמשים חינמיים
       const todayStr = new Date().toISOString().split('T')[0];
       if (metadata.last_story_date === todayStr) {
         setDailyCount(metadata.daily_story_count || 0);
@@ -38,35 +39,6 @@ export default function Home() {
       }
     }
   }, [user]);
-
-
-// קליטת תשלום מוצלח מ-Stripe
-  useEffect(() => {
-    const checkPaymentSuccess = async () => {
-      // בודקים אם חזרנו עכשיו מסטרייפ עם הצלחה
-      if (typeof window !== 'undefined' && window.location.search.includes('success=true') && user) {
-        try {
-          // מעדכנים את המשתמש במסד הנתונים ל-PRO!
-          await supabase.auth.updateUser({
-            data: { is_pro: true }
-          });
-          setIsPro(true);
-          
-          // מנקים את שורת הכתובת כדי שהפופ-אפ לא יקפוץ שוב ברענון
-          window.history.replaceState({}, document.title, window.location.pathname);
-          
-          // חגיגה!
-          alert('התשלום עבר בהצלחה! ברוך הבא למסלול PRO 👑. כל האתר פתוח בפניך.');
-        } catch (error) {
-          console.error('שגיאה בעדכון סטטוס PRO:', error);
-        }
-      }
-    };
-
-    checkPaymentSuccess();
-  }, [user]);
-
-
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -86,6 +58,7 @@ export default function Home() {
     if (user && !authLoading) fetchStats();
   }, [user, authLoading]);
 
+  // הגבלה למשתמש חינמי - אם הוא לא פרו ועשה כבר סיפור אחד היום
   const hasReachedLimit = !isPro && dailyCount >= 1;
 
   const handleGenerate = async () => {
@@ -102,6 +75,7 @@ export default function Home() {
       setStoryData(result);
       setStats(prev => ({ ...prev, stories: prev.stories + 1 }));
       
+      // מעדכנים מטא-דאטה רק למשתמשים חינמיים כדי לספור להם שימושים
       if (!isPro) {
         const newCount = dailyCount + 1;
         setDailyCount(newCount);
