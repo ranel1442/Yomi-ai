@@ -5,8 +5,6 @@ import { Check, X, Crown, Zap, Loader2, ArrowRight, Settings2 } from 'lucide-rea
 import { useAuth } from '../../hooks/useAuth';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-// הוספנו כאן את createPortalSession
-import { createCheckoutSession, createPortalSession } from '../../services/api'; 
 
 export default function PricingPage() {
   const { user, loading: authLoading } = useAuth();
@@ -22,45 +20,33 @@ export default function PricingPage() {
     }
   }, [user]);
 
-  // פונקציה לתשלום חדש
-  const handleSubscribe = async (priceId: string) => {
-    if (!user) {
+  // 🌟 הפונקציה החדשה: מעבר לתשלום ב-Lemon Squeezy
+  const handleSubscribe = () => {
+    if (!user || !user.id) {
       router.push('/login');
       return;
     }
     
     setIsCheckoutLoading(true);
-    try {
-      const actualPriceId = isAnnual 
-        ? 'price_1T9Q8FJmoaqQQ9r3YFBALxfL' 
-        : 'price_1T9Q0HJmoaqQQ9r3kXKkBLGA';
+    
+    // הקישורים מהחנות שלך
+    const monthlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/66fffbaf-5101-45bc-b1cb-069fc568e0af';
+    const yearlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/5fd418e2-8fad-4950-b639-aa40d1413349';
 
-      // 🌟 הוספנו כאן את user.email כששולחים את הבקשה
-      const checkoutUrl = await createCheckoutSession(actualPriceId, user.id, user.email);
-      window.location.href = checkoutUrl;
-    } catch (error) {
-      console.error(error);
-      alert('אירעה שגיאה. ודא שהשרת פועל.');
-      setIsCheckoutLoading(false);
-    }
+    const baseUrl = isAnnual ? yearlyUrl : monthlyUrl;
+
+    // משרשרים את ה-ID של המשתמש כדי שהוובהוק יידע מי שילם
+    const checkoutUrl = `${baseUrl}?checkout[custom][user_id]=${user.id}`;
+
+    // מעבירים את הלקוח לעמוד התשלום
+    window.location.href = checkoutUrl;
   };
 
-  // 🌟 הפונקציה החדשה: ניהול מנוי קיים
-  const handleManageSubscription = async () => {
-    if (!user || !user.user_metadata?.stripe_customer_id) {
-      alert('לא נמצא מזהה לקוח במערכת.');
-      return;
-    }
-
+  // 🌟 הפונקציה החדשה: ניהול מנוי ב-Lemon Squeezy
+  const handleManageSubscription = () => {
     setIsCheckoutLoading(true);
-    try {
-      const portalUrl = await createPortalSession(user.user_metadata.stripe_customer_id);
-      window.location.href = portalUrl; // מעביר את הלקוח לפורטל של סטרייפ
-    } catch (error) {
-      console.error(error);
-      alert('אירעה שגיאה בפתיחת אזור הניהול.');
-      setIsCheckoutLoading(false);
-    }
+    // מעביר את הלקוח לפורטל הלקוחות של Lemon Squeezy
+    window.location.href = 'https://app.lemonsqueezy.com/my-orders';
   };
 
   if (authLoading) {
@@ -171,9 +157,8 @@ export default function PricingPage() {
               <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> תמיכה טכנית VIP</li>
             </ul>
 
-            {/* 🌟 הכפתור המעודכן שיודע לפתוח את הפורטל למשתמשי PRO */}
             <button 
-              onClick={() => isPro ? handleManageSubscription() : handleSubscribe(isAnnual ? 'price_yearly_id' : 'price_monthly_id')}
+              onClick={() => isPro ? handleManageSubscription() : handleSubscribe()}
               disabled={isCheckoutLoading}
               className={`w-full font-extrabold py-4 rounded-2xl transition-all shadow-lg flex justify-center items-center gap-2 text-lg ${
                 isPro 
@@ -186,7 +171,7 @@ export default function PricingPage() {
                'התחל מנוי עכשיו'}
             </button>
             <div className="text-center mt-4 text-xs text-gray-400 font-medium">
-              תשלום מאובטח ע"י Stripe. ניתן לבטל בכל עת.
+              תשלום מאובטח ע"י Lemon Squeezy. ניתן לבטל בכל עת.
             </div>
           </div>
 
