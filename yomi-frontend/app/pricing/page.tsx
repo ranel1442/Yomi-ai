@@ -1,26 +1,19 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Check, X, Crown, Zap, Loader2, ArrowRight, Settings2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 export default function PricingPage() {
-  const { user, loading: authLoading } = useAuth();
+  // אנחנו שולפים את isPro ישירות מה-Hook המעודכן!
+  const { user, isPro, loading: authLoading } = useAuth();
   const router = useRouter();
   const [isAnnual, setIsAnnual] = useState(true);
-  const [isPro, setIsPro] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      const metadata = user.user_metadata || {};
-      setIsPro(metadata.is_pro === true);
-    }
-  }, [user]);
-
-  // 🌟 הפונקציה החדשה: מעבר לתשלום ב-Lemon Squeezy
+  // הפונקציה: מעבר לתשלום ב-Lemon Squeezy
   const handleSubscribe = () => {
     if (!user || !user.id) {
       router.push('/login');
@@ -42,7 +35,7 @@ export default function PricingPage() {
     window.location.href = checkoutUrl;
   };
 
-  // 🌟 הפונקציה החדשה: ניהול מנוי ב-Lemon Squeezy
+  // הפונקציה: ניהול מנוי ב-Lemon Squeezy
   const handleManageSubscription = () => {
     setIsCheckoutLoading(true);
     // מעביר את הלקוח לפורטל הלקוחות של Lemon Squeezy
