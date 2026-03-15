@@ -13,6 +13,7 @@ export default function PricingPage() {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
   // הפונקציה: מעבר לתשלום ב-Lemon Squeezy
+// הפונקציה: מעבר לתשלום ב-Lemon Squeezy
   const handleSubscribe = () => {
     if (!user || !user.id) {
       router.push('/login');
@@ -26,11 +27,13 @@ export default function PricingPage() {
       const yearlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/5fd418e2-8fad-4950-b639-aa40d1413349';
 
       const baseUrl = isAnnual ? yearlyUrl : monthlyUrl;
-      const checkoutUrl = `${baseUrl}?checkout[custom][user_id]=${user.id}`;
+      
+      // 🌟 הוספנו את המייל ואת המדינה (IL) לקישור!
+      const userEmail = encodeURIComponent(user.email || '');
+      const checkoutUrl = `${baseUrl}?checkout[custom][user_id]=${user.id}&checkout[email]=${userEmail}&checkout[billing_address][country]=IL`;
       
       window.location.assign(checkoutUrl);
       
-      // 🌟 התיקון: מכבים את הספינר אחרי 2 שניות למקרה שהמשתמש יחזור אחורה
       setTimeout(() => {
         setIsCheckoutLoading(false);
       }, 2000);
