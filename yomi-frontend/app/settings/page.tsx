@@ -7,7 +7,6 @@ import { supabase } from '../../services/supabase';
 import Link from 'next/link';
 
 export default function SettingsPage() {
-  // 🌟 מושכים את isPro ישירות מה-Hook!
   const { user, isPro, loading: authLoading } = useAuth();
   
   const [newPassword, setNewPassword] = useState('');
@@ -19,12 +18,12 @@ export default function SettingsPage() {
   
   const [showProModal, setShowProModal] = useState(false);
   
-  // סטייט למחיקת חשבון
+  // סטייטים למחיקת חשבון
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [understandRisk, setUnderstandRisk] = useState(false); // הצ'קבוקס החדש!
 
   useEffect(() => {
-    // טוען את הרמה השמורה רק פעם אחת כשהעמוד עולה
     const savedLevel = localStorage.getItem('defaultJlptLevel');
     if (savedLevel) {
       setDefaultLevel(savedLevel);
@@ -68,13 +67,14 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!user) return;
+    if (!user || !understandRisk) return;
     setIsDeleting(true);
     try {
-      // קריאה לפונקציית מחיקה (בדרך כלל דורש Edge Function בסופאבייס, אבל זו הקריאה הסטנדרטית)
+      // קורא לפונקציה שיצרנו ב-SQL Editor
       const { error } = await supabase.rpc('delete_user');
       if (error) throw error;
       
+      // מנתק את המשתמש וזורק אותו לעמוד הבית
       await supabase.auth.signOut();
       window.location.href = '/';
     } catch (error) {
@@ -215,7 +215,7 @@ export default function SettingsPage() {
             </form>
           </div>
           
-          {/* מחיקת חשבון (חובה לפי תקנות פרטיות) */}
+          {/* מחיקת חשבון */}
           <div className="bg-white dark:bg-[#111827] rounded-3xl shadow-sm border border-red-100 dark:border-red-900/30 p-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-xl text-red-600 dark:text-red-400">
@@ -225,7 +225,7 @@ export default function SettingsPage() {
             </div>
             
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              מחיקת החשבון תסיר לצמיתות את כל המידע שלך מהמערכת, לרבות היסטוריית הקריאה, הכרטיסיות ששמרת ונתוני הרצף שלך. <strong className="text-red-500">פעולה זו בלתי הפיכה.</strong>
+              מחיקת החשבון תסיר לצמיתות את כל המידע שלך מהמערכת, לרבות היסטוריית הקריאה והמילים ששמרת. <strong className="text-red-500">פעולה זו בלתי הפיכה.</strong>
             </p>
 
             {showDeleteConfirm ? (
@@ -234,19 +234,38 @@ export default function SettingsPage() {
                   <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={24} />
                   <div>
                     <h3 className="font-bold text-red-800 dark:text-red-400 mb-1">האם אתה בטוח?</h3>
-                    <p className="text-sm text-red-700 dark:text-red-300">כל הנתונים שלך יימחקו ולא ניתן יהיה לשחזר אותם.</p>
+                    <p className="text-sm text-red-700 dark:text-red-300 mb-3">כל הנתונים שלך יימחקו ולא ניתן יהיה לשחזר אותם.</p>
+                    
+                    {/* צ'קבוקס האחריות */}
+                    <label className="flex items-start gap-3 mt-4 mb-2 cursor-pointer group">
+                      <div className="relative flex items-center justify-center mt-1">
+                        <input 
+                          type="checkbox" 
+                          checked={understandRisk}
+                          onChange={(e) => setUnderstandRisk(e.target.checked)}
+                          className="w-5 h-5 rounded border-red-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                        />
+                      </div>
+                      <span className="text-sm text-red-800 dark:text-red-300 font-medium leading-relaxed">
+                        אני מבין שמחיקת החשבון היא באחריותי, ושאם ברשותי מנוי PRO - <strong>עליי לבטל אותו עצמאית</strong> דרך פורטל התשלומים לפני המחיקה כדי למנוע חיובים נוספים.
+                      </span>
+                    </label>
                   </div>
                 </div>
-                <div className="flex gap-3">
+                
+                <div className="flex gap-3 mt-6">
                   <button 
                     onClick={handleDeleteAccount}
-                    disabled={isDeleting}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors flex justify-center items-center"
+                    disabled={isDeleting || !understandRisk}
+                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-300 dark:disabled:bg-red-900/50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors flex justify-center items-center"
                   >
                     {isDeleting ? <Loader2 className="animate-spin" size={20} /> : 'כן, מחק את החשבון שלי'}
                   </button>
                   <button 
-                    onClick={() => setShowDeleteConfirm(false)}
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      setUnderstandRisk(false);
+                    }}
                     disabled={isDeleting}
                     className="flex-1 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-800 dark:text-white font-bold py-3 rounded-xl transition-colors"
                   >
