@@ -10,13 +10,16 @@ router.post('/generate', async (req, res) => {
       return res.status(400).json({ error: 'Text is required for audio generation' });
     }
 
-    // קריאה לשירות שהכנו
-    const audioBuffer = await generateAudio(text);
+    // קריאה לשירות שהכנו (מחזיר ArrayBuffer)
+    const rawAudio = await generateAudio(text);
+
+    // 🌟 זה הפתרון! המרה ל-Buffer אמיתי של Node.js
+    const audioBuffer = Buffer.from(rawAudio);
 
     // הגדרת סוג התוכן שחוזר ללקוח כקובץ שמע
     res.set({
       'Content-Type': 'audio/mpeg',
-      'Content-Length': audioBuffer.length,
+      'Content-Length': audioBuffer.length, // עכשיו זה באמת יחזיר את הגודל המדויק
     });
 
     // שליחת השמע ישירות לדפדפן
