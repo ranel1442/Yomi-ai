@@ -36,7 +36,6 @@ interface ReaderProps {
 type FuriganaMode = 'all' | 'firstTime' | 'none';
 
 export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
-  // 🌟 מושכים את isPro ישירות מה-Hook!
   const { user, isPro } = useAuth();
   const router = useRouter();
 
@@ -52,7 +51,6 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
   
   const [furiganaMode, setFuriganaMode] = useState<FuriganaMode>('all');
   
-  // 🌟 סטייטים עבור הבוחן
   const [isQuizLoading, setIsQuizLoading] = useState(false);
   const [showQuizSection, setShowQuizSection] = useState(false);
   const [quizData, setQuizData] = useState<QuizQuestion[] | null>(null);
@@ -62,7 +60,6 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
   const [quizScore, setQuizScore] = useState(0);
   const [isQuizFinished, setIsQuizFinished] = useState(false);
 
-  // סטייט לפופ-אפ שדרוג
   const [showProModal, setShowProModal] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -110,6 +107,9 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
 
   const handlePlayWordAudio = async (text: string) => {
     if (isAudioLoading) return;
+    
+    console.log(`[Audio Word] מנסה להשמיע את המילה: ${text}`);
+    
     if (activeAudio === 'full') {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -121,13 +121,27 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
 
     setActiveAudio('word');
     try {
+      console.log('[Audio Word] שולח בקשה לשרת...');
       const audioUrl = await generateAudio(text);
+      console.log('[Audio Word] התקבל URL מהשרת:', audioUrl);
+      
       const audio = new Audio(audioUrl);
       audio.playbackRate = playbackSpeed;
       audio.onended = () => setActiveAudio(null);
+      
+      audio.onerror = (e) => {
+        console.error('[Audio Word] השגיאה מתוך נגן השמע עצמו:', e);
+      };
+
       await audio.play();
-    } catch (error) {
-      console.error(error);
+      console.log('[Audio Word] מנגן בהצלחה!');
+    } catch (error: any) {
+      console.error('❌ [Audio Word] שגיאה בהשמעת המילה:');
+      console.error('Message:', error.message);
+      if (error.response) {
+        console.error('Response Status:', error.response.status);
+        console.error('Response Data:', error.response.data);
+      }
       setActiveAudio(null);
     }
   };
@@ -152,10 +166,23 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
 
     try {
       const fullText = allWordsFlat.map(w => w.kanji).join('');
+      console.log(`[Audio Full] מתחיל תהליך הקראה. אורך הטקסט: ${fullText.length} תווים.`);
+      console.log('[Audio Full] שולח בקשה ל-API (generateAudio)...');
+      
       const audioUrl = await generateAudio(fullText);
+      console.log('[Audio Full] ✅ הבקשה הצליחה! נוצר URL זמני לקובץ:', audioUrl);
+
       const audio = new Audio(audioUrl);
       audio.playbackRate = playbackSpeed;
       audioRef.current = audio;
+
+      // מאזין לשגיאות ברמת הנגן (אם הקובץ דפוק)
+      audio.onerror = (e) => {
+        console.error('❌ [Audio Full] נגן השמע זרק שגיאה. ייתכן שהקובץ שחזר אינו שמע תקין אלא הודעת שגיאה בתוך Blob.', e);
+        setIsAudioLoading(false);
+        setActiveAudio(null);
+        alert('הקובץ שחזר מהשרת אינו קובץ שמע תקין. פתח קונסול (F12) לפרטים.');
+      };
 
       audio.addEventListener('timeupdate', () => {
         if (audio.duration && audio.currentTime > 0) {
@@ -180,23 +207,37 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
       });
 
       audio.onplay = () => {
+        console.log('[Audio Full] ▶️ הניגון התחיל בפועל בדפדפן!');
         setIsAudioLoading(false);
         setIsPlayingAll(true);
       };
 
       audio.onended = () => {
+        console.log('[Audio Full] ⏹️ ההקראה הסתיימה.');
         setIsPlayingAll(false);
         setActiveAudio(null);
         setHighlightedWordIdx(null);
         audioRef.current = null;
       };
 
+      console.log('[Audio Full] קורא לפונקציית play() של הדפדפן...');
       await audio.play();
-    } catch (error) {
-      console.error(error);
+
+    } catch (error: any) {
+      console.error('❌ [Audio Full] השגיאה נתפסה ב-CATCH:');
+      console.error('Message:', error.message);
+      
+      // אם זו שגיאת רשת של אקסיוס
+      if (error.response) {
+        console.error('Status Code:', error.response.status);
+        console.error('Response Data:', error.response.data);
+      } else {
+        console.error('Error Details:', error);
+      }
+
       setIsAudioLoading(false);
       setActiveAudio(null);
-      alert('אירעה שגיאה בטעינת ההקראה הקולית.');
+      alert(`אירעה שגיאה בטעינת ההקראה הקולית. אנא פתח את הקונסול (F12) כדי לראות מה הבעיה.`);
     }
   };
 
@@ -221,7 +262,6 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
     }
   };
 
-  // 🌟 הפעלת הבוחן דרך ה-API (עם הגנת PRO)
   const handleStartQuiz = async () => {
     if (!isPro) {
       setShowProModal(true);
@@ -409,7 +449,7 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
         ))}
       </div>
 
-      {/* 🌟 אזור הבוחן - חסום למשתמשים רגילים */}
+      {/* אזור הבוחן */}
       <div className="mt-20 pt-10 border-t border-gray-200 dark:border-gray-800" dir="rtl">
         {!showQuizSection ? (
           <div className="text-center bg-indigo-50 dark:bg-indigo-900/10 rounded-3xl p-8 border border-indigo-100 dark:border-indigo-900/30 relative overflow-hidden group">
