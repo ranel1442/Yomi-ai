@@ -138,3 +138,24 @@ export const createPortalSession = async (stripeCustomerId: string) => {
   const data = await response.json();
   return data.url; // הקישור הישיר לפורטל הלקוחות
 };
+
+
+
+
+// ==========================================
+// 🌟 פונקציות חדשות עבור פיצ'ר השירים
+// ==========================================
+
+export const processSongWithGemini = async (formData: FormData) => {
+  try {
+    const response = await axios.post(`${API_URL}/songs/process`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error processing song:', error);
+    throw error;
+  }
+};
