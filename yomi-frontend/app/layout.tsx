@@ -3,7 +3,8 @@
 import './globals.css';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, LibraryBig, Languages, BrainCircuit, LogOut, User, Moon, Sun, Menu, X, Settings, Flame, Mail } from 'lucide-react';
+// שמתי לב שהוספתי את Music לאימפורט כאן
+import { BookOpen, LibraryBig, Languages, BrainCircuit, LogOut, User, Moon, Sun, Menu, X, Settings, Flame, Mail, Music } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useStreak } from '../hooks/useStreak'; 
 import { supabase } from '../services/supabase';
@@ -48,7 +49,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         
         {!isLoginPage && (
           <nav className="bg-white/80 dark:bg-[#111827]/80 backdrop-blur-md shadow-sm dark:shadow-blue-900/10 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-40 transition-colors">
-            {/* הגדלנו את הרוחב ל-6xl כדי לתת לנאב-בר יותר מקום לנשום */}
             <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center relative">
               
               {/* לוגו */}
@@ -57,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span className="hidden sm:inline">Yomi-AI</span>
               </Link>
 
-              {/* ניווט דסקטופ - כיווצנו רווחים והוספנו מניעת ירידת שורה */}
+              {/* ניווט דסקטופ */}
               <div className="hidden md:flex gap-4 lg:gap-7 items-center whitespace-nowrap">
                 <Link href="/" className={`flex items-center gap-1.5 font-medium transition-colors ${pathname === '/' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400'}`}>
                   <BookOpen size={18} /> יצירת טקסט
@@ -68,12 +68,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/flashcards" className={`flex items-center gap-1.5 font-medium transition-colors ${pathname === '/flashcards' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400'}`}>
                   <BrainCircuit size={18} /> תרגול
                 </Link>
+                {/* 🌟 הקישור החדש לעמוד השירים בדסקטופ */}
+                <Link href="/songs" className={`flex items-center gap-1.5 font-medium transition-colors ${pathname === '/songs' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400'}`}>
+                  <Music size={18} /> שירים
+                </Link>
                 <Link href="/contact" className={`flex items-center gap-1.5 font-medium transition-colors ${pathname === '/contact' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400'}`}>
                   <Mail size={18} /> צור קשר
                 </Link>
               </div>
 
-              {/* אזור משתמש דסקטופ - קומפקטי ואלגנטי */}
+              {/* אזור משתמש דסקטופ */}
               <div className="hidden md:flex items-center gap-2 lg:gap-3 border-r dark:border-gray-700 pr-3 mr-1 shrink-0">
                 <button onClick={toggleTheme} className="p-1.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all shrink-0">
                   {isDark ? <Sun size={18} /> : <Moon size={18} />}
@@ -81,14 +85,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                 {user ? (
                   <div className="flex items-center gap-2 lg:gap-3">
-                    
-                    {/* מד הרצף 🔥 */}
+                    {/* מד הרצף */}
                     <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400 font-bold bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border border-orange-200 dark:border-orange-900/50 shrink-0" title="רצף ימים">
                       <Flame size={16} className={streak > 0 ? "fill-orange-500 dark:fill-orange-400" : ""} />
                       <span className="text-sm">{streak}</span>
                     </div>
 
-                    {/* תצוגת אימייל חכמה שחותכת את ה-@gmail.com בשביל לחסוך מקום! */}
                     <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-[#1E293B] px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 shrink-0 cursor-default" dir="ltr" title={user.email}>
                       <User size={14} className="text-gray-500" />
                       <span className="text-xs lg:text-sm font-bold text-gray-700 dark:text-gray-200 truncate max-w-[80px] lg:max-w-[120px]">
@@ -142,6 +144,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </Link>
                 <Link href="/flashcards" className={`flex items-center gap-3 p-4 rounded-2xl font-bold transition-colors ${pathname === '/flashcards' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                   <BrainCircuit size={22} /> תרגול
+                </Link>
+                {/* 🌟 הקישור החדש לעמוד השירים במובייל */}
+                <Link href="/songs" className={`flex items-center gap-3 p-4 rounded-2xl font-bold transition-colors ${pathname === '/songs' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                  <Music size={22} /> שירים
                 </Link>
                 <Link href="/contact" className={`flex items-center gap-3 p-4 rounded-2xl font-bold transition-colors ${pathname === '/contact' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                   <Mail size={22} /> צור קשר

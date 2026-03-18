@@ -12,6 +12,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const storiesRoutes = require('./routes/stories');
 const audioRoutes = require('./routes/audio');
 const flashcardsRoutes = require('./routes/flashcards');
+const songsRouter = require('./routes/songs');
 
 const app = express();
 
@@ -92,6 +93,7 @@ app.use(express.json());
 app.use('/api/stories', storiesRoutes);
 app.use('/api/audio', audioRoutes);
 app.use('/api/flashcards', flashcardsRoutes);
+app.use('/api/songs', songsRouter);
 
 app.get('/', (req, res) => {
   res.send('Yomi-AI Backend is running smoothly with Lemon Squeezy!');

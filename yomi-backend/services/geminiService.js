@@ -53,7 +53,7 @@ async function generateJapaneseStory(hebrewText, level = 'N5') {
   }
 }
 
-// 🌟 הפונקציה החדשה לייצור הבוחן
+// 🌟 הפונקציה לייצור הבוחן
 async function generateStoryQuiz(storyText) {
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-flash',
@@ -92,5 +92,52 @@ async function generateStoryQuiz(storyText) {
   }
 }
 
-// ייצוא שתי הפונקציות!
-module.exports = { generateJapaneseStory, generateStoryQuiz };
+// 🌟 הפונקציה החדשה לסנכרון אודיו ומילים (הפיצ'ר החדש)
+async function syncLyricsWithAudio(audioBuffer, mimeType, lyricsText) {
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      responseMimeType: 'application/json',
+    }
+  });
+
+  const prompt = `
+  You are a highly capable audio-to-text synchronization engine.
+  I am providing you with an audio file of a Japanese song and its complete lyrics text.
+  Your task is to listen to the song and map each line from the provided lyrics to its exact start and end time in the audio (in seconds).
+  Return ONLY a valid JSON array of objects. Do not add markdown tags.
+  
+  Format example:
+  [
+    { "text": "First line of lyrics", "startTime": 0.5, "endTime": 3.2 },
+    { "text": "Second line of lyrics", "startTime": 3.5, "endTime": 6.0 }
+  ]
+  
+  Here are the lyrics:
+  ${lyricsText}
+  `;
+
+  const audioPart = {
+    inlineData: {
+      data: audioBuffer.toString("base64"),
+      mimeType: mimeType // לדוגמה 'audio/mp3' או 'audio/mpeg'
+    }
+  };
+
+  try {
+    // שולחים לג'מיני גם את הפרומפט וגם את קובץ האודיו
+    const result = await model.generateContent([prompt, audioPart]);
+    let responseText = result.response.text();
+    
+    // ניקוי תגיות מארקאון במידה וג'מיני החזיר אותן
+    responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    return JSON.parse(responseText);
+  } catch (error) {
+    console.error('Error syncing lyrics via Gemini:', error);
+    throw new Error('Failed to extract timestamps from audio using Gemini AI');
+  }
+}
+
+// ייצוא כל הפונקציות!
+module.exports = { generateJapaneseStory, generateStoryQuiz, syncLyricsWithAudio };
