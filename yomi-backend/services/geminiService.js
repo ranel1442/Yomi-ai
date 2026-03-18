@@ -94,16 +94,13 @@ async function generateStoryQuiz(storyText) {
 
 // 🌟 הפונקציה החדשה לסנכרון אודיו ומילים (הפיצ'ר החדש)
 // הפיצ'ר המשודרג: סנכרון עם בדיקה כפולה (Two-Pass)
-// הפיצ'ר המשודרג: סנכרון היברידי עם שני קבצי אודיו (מקורי + מסונן)
-async function syncLyricsWithAudio(originalAudioBuffer, filteredAudioBuffer, mimeType, lyricsText) {
+// 🌟 התיקון: הפונקציה עכשיו מקבלת אובייקט עם שמות מדויקים!
+async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, mimeType, lyricsText }) {
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-    }
+    generationConfig: { responseMimeType: 'application/json' }
   });
 
-  // מכינים את שני הקבצים לג'מיני
   const originalAudioPart = {
     inlineData: { data: originalAudioBuffer.toString("base64"), mimeType }
   };
@@ -111,7 +108,6 @@ async function syncLyricsWithAudio(originalAudioBuffer, filteredAudioBuffer, mim
     inlineData: { data: filteredAudioBuffer.toString("base64"), mimeType }
   };
 
-  // מעבר ראשון - יצירת הטיוטה עם הקובץ ה*מקורי* (כדי לא לפספס לחישות או עיצורים)
   const initialPrompt = `
   You are an audio synchronization engine. Listen to this original Japanese song and map each line from the provided lyrics to its start and end time (in seconds).
   Return ONLY a valid JSON array of objects with "text", "startTime", and "endTime".
@@ -124,7 +120,6 @@ async function syncLyricsWithAudio(originalAudioBuffer, filteredAudioBuffer, mim
     const draftResult = await model.generateContent([initialPrompt, originalAudioPart]);
     let draftText = draftResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     
-    // מעבר שני - דיוק הזמנים עם הקובץ ה*מסונן* (בלי תופים/בס)
     const refinePrompt = `
     You are an expert audio engineer. 
     Here is a draft JSON containing timestamps for a Japanese song based on the original mix.
