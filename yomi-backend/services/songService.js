@@ -11,46 +11,52 @@ const getTokenizer = () => {
 };
 
 // הפונקציה המרכזית שמקבלת את התוצאה מ-Gemini
-// הפונקציה המשודרגת: חלוקת זמן חכמה לפי מספר הברות (Mora)
 const processGeminiLyrics = async (geminiLines) => {
     const tokenizer = await getTokenizer();
     const processedData = [];
 
+    // פונקציית עזר לחישוב "משקל הזמן" של מילה
+    const getWordWeight = (token) => {
+        // בדיקה אם המילה מורכבת מאותיות באנגלית או מספרים
+        const isEnglishOrNumber = /^[a-zA-Z0-9\s.,!?'-]+$/.test(token.surface_form);
+        
+        if (token.reading) {
+            return token.reading.length; // הברות יפניות תקינות
+        } else if (isEnglishOrNumber) {
+            // מילה באנגלית: נעריך שכל 2 אותיות בערך שוות הברה/פעימה אחת כדי לא למרוח את הזמן
+            return Math.max(1, Math.ceil(token.surface_form.length / 2));
+        } else {
+            // סתם סימני פיסוק או משהו לא מזוהה
+            return token.surface_form.length || 1;
+        }
+    };
+
     geminiLines.forEach(line => {
         const { text, startTime, endTime } = line;
-        
         if (!text) return;
 
         const tokens = tokenizer.tokenize(text);
         const duration = endTime - startTime;
 
-        // שדרוג: סופרים את סך כל ההברות (אותיות קריאה) בכל השורה!
-        const totalSyllablesInLine = tokens.reduce((sum, token) => {
-            // אם יש קריאה (קטקאנה) נספור את האותיות, אחרת נספור את המילה עצמה
-            const charCount = token.reading ? token.reading.length : token.surface_form.length;
-            return sum + (charCount || 1);
-        }, 0);
+        // חישוב סך המשקלים (ההברות) של כל השורה
+        const totalWeightInLine = tokens.reduce((sum, token) => sum + getWordWeight(token), 0);
 
         let currentCursor = startTime;
 
         const words = tokens.map((token) => {
-            // כמה אותיות/הברות יש במילה הזו הספציפית?
-            const wordSyllableCount = token.reading ? token.reading.length : token.surface_form.length;
-            
-            // חישוב הזמן היחסי של המילה (הברות במילה חלקי סך ההברות בשורה)
-            const weight = (wordSyllableCount || 1) / totalSyllablesInLine;
-            const wordDuration = duration * weight;
+            const wordWeight = getWordWeight(token);
+            const weightPercentage = totalWeightInLine > 0 ? (wordWeight / totalWeightInLine) : 0;
+            const wordDuration = duration * weightPercentage;
 
             const wordStartTime = currentCursor;
             const wordEndTime = currentCursor + wordDuration;
-            
-            // קידום הסמן למילה הבאה
             currentCursor = wordEndTime;
 
             return {
                 word: token.surface_form,
-                reading: token.reading || token.surface_form,
-                base_form: token.base_form,
+                // אם אין קריאה (כמו באנגלית), נחזיר מחרוזת ריקה כדי שהפרונטנד לא יקרוס
+                reading: token.reading ? token.reading : '', 
+                base_form: token.base_form || token.surface_form,
                 startTime: wordStartTime,
                 endTime: wordEndTime
             };

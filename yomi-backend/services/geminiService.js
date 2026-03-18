@@ -109,29 +109,35 @@ async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, m
   };
 
   const initialPrompt = `
-  You are an audio synchronization engine. Listen to this original Japanese song and map each line from the provided lyrics to its start and end time (in seconds).
-  Return ONLY a valid JSON array of objects with "text", "startTime", and "endTime".
-  Lyrics:
-  ${lyricsText}
-  `;
-
+    You are an audio synchronization engine. Listen to this original Japanese song and map each line from the provided lyrics to its start and end time (in seconds).
+    
+    CRITICAL RULES:
+    1. ONLY use the exact lines provided in the lyrics. Do NOT invent, autocomplete, or add missing lyrics even if the singer sings them.
+    2. The song and lyrics may contain English words or Romaji. Treat them exactly like the Japanese words.
+    
+    Return ONLY a valid JSON array of objects with "text", "startTime", and "endTime".
+    Lyrics:
+    ${lyricsText}
+    `;
   try {
     console.log('Gemini Pass 1: Analyzing Original Audio for word detection...');
     const draftResult = await model.generateContent([initialPrompt, originalAudioPart]);
     let draftText = draftResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     
     const refinePrompt = `
-    You are an expert audio engineer. 
-    Here is a draft JSON containing timestamps for a Japanese song based on the original mix.
-    Now, listen to this VOCAL-ISOLATED version of the same song (background music and drums are heavily reduced).
-    Your task is to heavily REFINE and CORRECT the "startTime" and "endTime" of the draft to be extremely precise to the millisecond based strictly on when the vocal chords hit.
-    DO NOT remove or miss any lines from the draft, even if they are faint in this version. Just fix the timing.
-    Return ONLY the corrected JSON array.
-    
-    Draft JSON:
-    ${draftText}
-    `;
-
+      You are an expert audio engineer. 
+      Here is a draft JSON containing timestamps for a Japanese song.
+      Listen to this VOCAL-ISOLATED version of the same song.
+      Your task is to heavily REFINE and CORRECT the "startTime" and "endTime" of the draft to be extremely precise to the millisecond based strictly on when the vocal chords hit.
+      
+      CRITICAL RULES:
+      1. DO NOT add new lines. DO NOT remove lines. Just fix the timing of the exact lines provided in the draft.
+      2. Handle English words naturally without breaking the JSON structure.
+      
+      Return ONLY the corrected JSON array.
+      Draft JSON:
+      ${draftText}
+      `;
     console.log('Gemini Pass 2: Analyzing Filtered Audio for exact millisecond timing...');
     const finalResult = await model.generateContent([refinePrompt, filteredAudioPart]);
     let finalText = finalResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
