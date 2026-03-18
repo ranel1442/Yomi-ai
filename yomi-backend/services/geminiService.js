@@ -93,6 +93,7 @@ async function generateStoryQuiz(storyText) {
 }
 
 // 🌟 הפונקציה החדשה לסנכרון אודיו ומילים (הפיצ'ר החדש)
+// הפיצ'ר המשודרג: סנכרון עם בדיקה כפולה (Two-Pass)
 async function syncLyricsWithAudio(audioBuffer, mimeType, lyricsText) {
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-flash',
@@ -101,38 +102,43 @@ async function syncLyricsWithAudio(audioBuffer, mimeType, lyricsText) {
     }
   });
 
-  const prompt = `
-  You are a highly capable audio-to-text synchronization engine.
-  I am providing you with an audio file of a Japanese song and its complete lyrics text.
-  Your task is to listen to the song and map each line from the provided lyrics to its exact start and end time in the audio (in seconds).
-  Return ONLY a valid JSON array of objects. Do not add markdown tags.
-  
-  Format example:
-  [
-    { "text": "First line of lyrics", "startTime": 0.5, "endTime": 3.2 },
-    { "text": "Second line of lyrics", "startTime": 3.5, "endTime": 6.0 }
-  ]
-  
-  Here are the lyrics:
-  ${lyricsText}
-  `;
-
   const audioPart = {
     inlineData: {
       data: audioBuffer.toString("base64"),
-      mimeType: mimeType // לדוגמה 'audio/mp3' או 'audio/mpeg'
+      mimeType: mimeType
     }
   };
 
+  // מעבר ראשון - יצירת הטיוטה
+  const initialPrompt = `
+  You are an audio synchronization engine. Listen to the Japanese song and map each line from the provided lyrics to its start and end time (in seconds).
+  Return ONLY a valid JSON array of objects with "text", "startTime", and "endTime".
+  Lyrics:
+  ${lyricsText}
+  `;
+
   try {
-    // שולחים לג'מיני גם את הפרומפט וגם את קובץ האודיו
-    const result = await model.generateContent([prompt, audioPart]);
-    let responseText = result.response.text();
+    console.log('Gemini Pass 1: Generating initial timestamps...');
+    const draftResult = await model.generateContent([initialPrompt, audioPart]);
+    let draftText = draftResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     
-    // ניקוי תגיות מארקאון במידה וג'מיני החזיר אותן
-    responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    // מעבר שני - ה-Double Check! שולחים את הטיוטה לדיוק
+    const refinePrompt = `
+    You are an expert audio engineer. 
+    Here is a draft JSON containing timestamps for a Japanese song. 
+    Listen to the audio AGAIN closely, and deeply REFINE and CORRECT the "startTime" and "endTime" for each line to be extremely precise to the millisecond.
+    Pay attention to pauses, musical intros, and when the singer actually starts/stops singing the line.
+    Return ONLY the corrected JSON array.
     
-    return JSON.parse(responseText);
+    Draft JSON:
+    ${draftText}
+    `;
+
+    console.log('Gemini Pass 2: Refining and correcting timestamps...');
+    const finalResult = await model.generateContent([refinePrompt, audioPart]);
+    let finalText = finalResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+
+    return JSON.parse(finalText);
   } catch (error) {
     console.error('Error syncing lyrics via Gemini:', error);
     throw new Error('Failed to extract timestamps from audio using Gemini AI');

@@ -11,6 +11,7 @@ const getTokenizer = () => {
 };
 
 // הפונקציה המרכזית שמקבלת את התוצאה מ-Gemini
+// הפונקציה המשודרגת: חלוקת זמן חכמה לפי מספר הברות (Mora)
 const processGeminiLyrics = async (geminiLines) => {
     const tokenizer = await getTokenizer();
     const processedData = [];
@@ -18,22 +19,40 @@ const processGeminiLyrics = async (geminiLines) => {
     geminiLines.forEach(line => {
         const { text, startTime, endTime } = line;
         
-        if (!text) return; // דילוג על שורות ריקות
+        if (!text) return;
 
-        // פירוק השורה למילים
         const tokens = tokenizer.tokenize(text);
-        
-        // חישוב הזמן שמגיע לכל מילה (משך השורה חלקי כמות המילים)
         const duration = endTime - startTime;
-        const timePerToken = duration / tokens.length;
 
-        const words = tokens.map((token, index) => {
+        // שדרוג: סופרים את סך כל ההברות (אותיות קריאה) בכל השורה!
+        const totalSyllablesInLine = tokens.reduce((sum, token) => {
+            // אם יש קריאה (קטקאנה) נספור את האותיות, אחרת נספור את המילה עצמה
+            const charCount = token.reading ? token.reading.length : token.surface_form.length;
+            return sum + (charCount || 1);
+        }, 0);
+
+        let currentCursor = startTime;
+
+        const words = tokens.map((token) => {
+            // כמה אותיות/הברות יש במילה הזו הספציפית?
+            const wordSyllableCount = token.reading ? token.reading.length : token.surface_form.length;
+            
+            // חישוב הזמן היחסי של המילה (הברות במילה חלקי סך ההברות בשורה)
+            const weight = (wordSyllableCount || 1) / totalSyllablesInLine;
+            const wordDuration = duration * weight;
+
+            const wordStartTime = currentCursor;
+            const wordEndTime = currentCursor + wordDuration;
+            
+            // קידום הסמן למילה הבאה
+            currentCursor = wordEndTime;
+
             return {
-                word: token.surface_form, // המילה כפי שהיא מופיעה (קאנג'י/הירגאנה)
-                reading: token.reading || token.surface_form, // הקריאה (לפוריגנה)
-                base_form: token.base_form, // צורת הבסיס
-                startTime: startTime + (index * timePerToken), // תחילת המילה
-                endTime: startTime + ((index + 1) * timePerToken) // סיום המילה
+                word: token.surface_form,
+                reading: token.reading || token.surface_form,
+                base_form: token.base_form,
+                startTime: wordStartTime,
+                endTime: wordEndTime
             };
         });
 
