@@ -94,7 +94,8 @@ async function generateStoryQuiz(storyText) {
 
 // 🌟 הפונקציה החדשה לסנכרון אודיו ומילים (הפיצ'ר החדש)
 // הפיצ'ר המשודרג: סנכרון עם בדיקה כפולה (Two-Pass)
-async function syncLyricsWithAudio(audioBuffer, mimeType, lyricsText) {
+// הפיצ'ר המשודרג: סנכרון היברידי עם שני קבצי אודיו (מקורי + מסונן)
+async function syncLyricsWithAudio(originalAudioBuffer, filteredAudioBuffer, mimeType, lyricsText) {
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-flash',
     generationConfig: {
@@ -102,40 +103,42 @@ async function syncLyricsWithAudio(audioBuffer, mimeType, lyricsText) {
     }
   });
 
-  const audioPart = {
-    inlineData: {
-      data: audioBuffer.toString("base64"),
-      mimeType: mimeType
-    }
+  // מכינים את שני הקבצים לג'מיני
+  const originalAudioPart = {
+    inlineData: { data: originalAudioBuffer.toString("base64"), mimeType }
+  };
+  const filteredAudioPart = {
+    inlineData: { data: filteredAudioBuffer.toString("base64"), mimeType }
   };
 
-  // מעבר ראשון - יצירת הטיוטה
+  // מעבר ראשון - יצירת הטיוטה עם הקובץ ה*מקורי* (כדי לא לפספס לחישות או עיצורים)
   const initialPrompt = `
-  You are an audio synchronization engine. Listen to the Japanese song and map each line from the provided lyrics to its start and end time (in seconds).
+  You are an audio synchronization engine. Listen to this original Japanese song and map each line from the provided lyrics to its start and end time (in seconds).
   Return ONLY a valid JSON array of objects with "text", "startTime", and "endTime".
   Lyrics:
   ${lyricsText}
   `;
 
   try {
-    console.log('Gemini Pass 1: Generating initial timestamps...');
-    const draftResult = await model.generateContent([initialPrompt, audioPart]);
+    console.log('Gemini Pass 1: Analyzing Original Audio for word detection...');
+    const draftResult = await model.generateContent([initialPrompt, originalAudioPart]);
     let draftText = draftResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     
-    // מעבר שני - ה-Double Check! שולחים את הטיוטה לדיוק
+    // מעבר שני - דיוק הזמנים עם הקובץ ה*מסונן* (בלי תופים/בס)
     const refinePrompt = `
     You are an expert audio engineer. 
-    Here is a draft JSON containing timestamps for a Japanese song. 
-    Listen to the audio AGAIN closely, and deeply REFINE and CORRECT the "startTime" and "endTime" for each line to be extremely precise to the millisecond.
-    Pay attention to pauses, musical intros, and when the singer actually starts/stops singing the line.
+    Here is a draft JSON containing timestamps for a Japanese song based on the original mix.
+    Now, listen to this VOCAL-ISOLATED version of the same song (background music and drums are heavily reduced).
+    Your task is to heavily REFINE and CORRECT the "startTime" and "endTime" of the draft to be extremely precise to the millisecond based strictly on when the vocal chords hit.
+    DO NOT remove or miss any lines from the draft, even if they are faint in this version. Just fix the timing.
     Return ONLY the corrected JSON array.
     
     Draft JSON:
     ${draftText}
     `;
 
-    console.log('Gemini Pass 2: Refining and correcting timestamps...');
-    const finalResult = await model.generateContent([refinePrompt, audioPart]);
+    console.log('Gemini Pass 2: Analyzing Filtered Audio for exact millisecond timing...');
+    const finalResult = await model.generateContent([refinePrompt, filteredAudioPart]);
     let finalText = finalResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
 
     return JSON.parse(finalText);
