@@ -218,12 +218,13 @@ export default function SongsPage() {
                 onChange={(e) => setLyrics(e.target.value)} 
                 disabled={limitReached || isCheckingLimit}
                 placeholder={isCheckingLimit ? "בודק הרשאות..." : limitReached ? "הגעת למגבלת השירים החינמית..." : "הדבק כאן את הטקסט..."} 
-                className={`w-full rounded-xl border p-4 outline-none resize-none transition-all dir-ltr ${
+                className={`w-full rounded-xl border p-4 outline-none resize-none transition-all ${
                   limitReached 
                     ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
                     : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
                 }`}
-                dir="ltr" 
+                // 🌟 כאן הקסם: הכיוון משתנה בהתאם למצב
+                dir={limitReached ? "rtl" : "ltr"} 
               />
               {limitReached && <Lock size={24} className="absolute left-4 top-4 text-gray-400" />}
             </div>
