@@ -2,12 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Music, UploadCloud, Loader2, Play, Bookmark, X, Crown, Lock, Eye, Brain, EyeOff } from 'lucide-react';
+import { Music, UploadCloud, Loader2, Play, Bookmark, X, Crown, Eye, Brain, EyeOff, Lock } from 'lucide-react';
 import { processSongWithGemini, generateAudio, saveFlashcard } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { useRouter } from 'next/navigation';
+import { supabase } from '../../services/supabase'; // 🌟 ייבוא סופאבייס לבדיקה המוקדמת
 
-// פונקציית עזר להמרת קאטאקנה להירגאנה
 const kata2Hira = (str: string) => {
   if (!str) return str;
   return str.replace(/[\u30a1-\u30f6]/g, match => 
@@ -18,7 +18,6 @@ const kata2Hira = (str: string) => {
 type FuriganaMode = 'all' | 'firstTime' | 'none';
 
 export default function SongsPage() {
-  // 🌟 הוספנו את isPro מה-hook ו-useRouter לניווט
   const { user, isPro } = useAuth();
   const router = useRouter();
 
@@ -34,12 +33,49 @@ export default function SongsPage() {
   const [activeAudio, setActiveAudio] = useState<'word' | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // 🌟 סטייטים חדשים להגבלת PRO ומצב פוריגנה
   const [showProModal, setShowProModal] = useState(false);
-  const [limitReached, setLimitReached] = useState(false);
   const [furiganaMode, setFuriganaMode] = useState<FuriganaMode>('all');
+  
+  // 🌟 סטייט למגבלה, מתחיל כ-false ויתעדכן בטעינה
+  const [limitReached, setLimitReached] = useState(false);
+  const [isCheckingLimit, setIsCheckingLimit] = useState(true);
 
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // 🌟 בדיקה מראש (Pre-check) ברגע שהעמוד נטען
+  useEffect(() => {
+    const checkUserLimit = async () => {
+      if (!user) {
+        setIsCheckingLimit(false);
+        return;
+      }
+      
+      // אם הוא פרו, אין מגבלה
+      if (isPro) {
+        setLimitReached(false);
+        setIsCheckingLimit(false);
+        return;
+      }
+
+      // אם הוא חינמי, נבדוק כמה שירים יש לו כבר
+      try {
+        const { count, error } = await supabase
+          .from('user_songs')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+
+        if (!error && count && count >= 1) {
+          setLimitReached(true);
+        }
+      } catch (err) {
+        console.error('Error checking limit:', err);
+      } finally {
+        setIsCheckingLimit(false);
+      }
+    };
+
+    checkUserLimit();
+  }, [user, isPro]);
 
   useEffect(() => {
     return () => {
@@ -57,14 +93,10 @@ export default function SongsPage() {
   };
 
   const handleSubmit = async () => {
+    if (limitReached && !isPro) return; // חסימה נוספת ליתר ביטחון
+
     if (!audioFile || !lyrics.trim()) {
       alert('יש להעלות קובץ אודיו ולהזין מילים');
-      return;
-    }
-
-    // אם המשתמש כבר הוגדר כחסום, נפתח לו ישר את הפופ-אפ
-    if (limitReached && !isPro) {
-      setShowProModal(true);
       return;
     }
 
@@ -81,7 +113,6 @@ export default function SongsPage() {
       setAudioUrl(response.songData.audio_url);
       setSongId(response.songData.id);
 
-      // 🌟 לוגיקת "פוריגנה חכמה": מעבר על המילים וסימון מה מופיע פעם ראשונה
       const seenWords = new Set<string>();
       const enrichedSyncData = response.songData.lyrics_data.map((line: any) => ({
         ...line,
@@ -95,11 +126,10 @@ export default function SongsPage() {
       }));
 
       setSyncData(enrichedSyncData); 
-      setLimitReached(false); // במקרה של הצלחה, נוודא שהמגבלה מאופסת
+      setLimitReached(false); 
       
     } catch (error: any) {
       console.error(error);
-      // 🌟 תפיסת שגיאת 403 מהבאקנד (הגבלת משתמש חינמי)
       if (error.response && error.response.status === 403) {
         setLimitReached(true);
         setShowProModal(true);
@@ -158,58 +188,74 @@ export default function SongsPage() {
         למידה דרך שירים
       </h1>
 
-      {/* ========== שלב 1: טופס העלאה ========== */}
+      {/* ========== טופס יצירה (עם מצב חסום) ========== */}
       {!syncData && (
-        <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col gap-6">
-          <div>
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col gap-6 relative overflow-hidden">
+          
+          {/* אפקט עמום אם המשתמש חסום */}
+          {limitReached && <div className="absolute inset-0 bg-gray-50/50 dark:bg-[#0B0F19]/60 z-10 pointer-events-none"></div>}
+
+          <div className="relative z-20">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">1. בחר קובץ MP3</label>
-            <input 
-              type="file" 
-              accept="audio/*" 
-              onChange={handleFileChange} 
-              disabled={limitReached && !isPro} // משביתים אם הגיע למגבלה
-              className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-400 hover:file:bg-blue-100 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" 
-            />
+            <div className={`relative rounded-xl border ${limitReached ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 opacity-70' : 'border-transparent'}`}>
+              <input 
+                type="file" 
+                accept="audio/*" 
+                onChange={handleFileChange} 
+                disabled={limitReached || isCheckingLimit} 
+                className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-400 hover:file:bg-blue-100 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" 
+              />
+              {limitReached && <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />}
+            </div>
           </div>
-          <div>
+
+          <div className="relative z-20">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">2. הדבק את מילות השיר ביפנית</label>
-            <textarea 
-              rows={8} 
-              value={limitReached && !isPro ? '' : lyrics} 
-              onChange={(e) => setLyrics(e.target.value)} 
-              disabled={limitReached && !isPro}
-              placeholder={limitReached && !isPro ? "הגעת למגבלת השירים החינמית..." : "הדבק כאן את הטקסט..."} 
-              className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] p-4 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed" 
-              dir="ltr" 
-            />
+            <div className="relative">
+              <textarea 
+                rows={8} 
+                value={limitReached ? '' : lyrics} 
+                onChange={(e) => setLyrics(e.target.value)} 
+                disabled={limitReached || isCheckingLimit}
+                placeholder={isCheckingLimit ? "בודק הרשאות..." : limitReached ? "הגעת למגבלת השירים החינמית..." : "הדבק כאן את הטקסט..."} 
+                className={`w-full rounded-xl border p-4 outline-none resize-none transition-all dir-ltr ${
+                  limitReached 
+                    ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
+                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
+                }`}
+                dir="ltr" 
+              />
+              {limitReached && <Lock size={24} className="absolute left-4 top-4 text-gray-400" />}
+            </div>
           </div>
           
-          {/* 🌟 כפתור דינמי שמשתנה אם המשתמש הגיע למגבלה */}
-          {limitReached && !isPro ? (
-            <button 
-              onClick={() => router.push('/pricing')}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl transition-all flex justify-center items-center gap-2 shadow-lg"
-            >
-              <Crown size={20} /> שדרג ל-PRO להמשך יצירה
-            </button>
-          ) : (
-            <button 
-              onClick={handleSubmit} 
-              disabled={isLoading || !audioFile || !lyrics} 
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900 disabled:cursor-not-allowed text-white font-bold py-3.5 px-6 rounded-xl transition-all flex justify-center items-center gap-2"
-            >
-              {isLoading ? <><Loader2 className="animate-spin" size={20} /> מנתח ומעלה למסד הנתונים...</> : <><UploadCloud size={20} /> צור שיעור אינטראקטיבי</>}
-            </button>
-          )}
+          {/* 🌟 כפתור דינמי שמשתנה אם המשתמש הגיע למגבלה (מעוצב בדיוק כמו בסיפורים) */}
+          <div className="relative z-20">
+            {limitReached ? (
+              <button 
+                onClick={() => router.push('/pricing')}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-md flex justify-center items-center gap-2"
+              >
+                <Crown size={20} /> שדרג ל-PRO להמשך יצירה
+              </button>
+            ) : (
+              <button 
+                onClick={handleSubmit} 
+                disabled={isLoading || !audioFile || !lyrics || isCheckingLimit} 
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all flex justify-center items-center gap-2 shadow-sm"
+              >
+                {isLoading ? <><Loader2 className="animate-spin" size={20} /> מנתח ומעלה למסד הנתונים...</> : <><UploadCloud size={20} /> צור שיעור אינטראקטיבי</>}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {/* ========== שלב 2: נגן ותצוגת השיר ========== */}
+      {/* ========== נגן ותצוגת השיר ========== */}
       {syncData && (
         <div className="flex flex-col gap-6">
           <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 sticky top-24 z-10 flex flex-col gap-4">
             
-            {/* 🌟 תפריט שליטה בפוריגנה */}
             <div className="flex justify-between items-center mb-2" dir="rtl">
               <span className="text-sm font-bold text-gray-500 dark:text-gray-400">תצוגת פוריגנה:</span>
               <div className="flex items-center bg-gray-50 dark:bg-[#0B0F19] border border-gray-200 dark:border-gray-700 rounded-xl p-1 shadow-inner">
@@ -236,7 +282,6 @@ export default function SongsPage() {
                 {line.words.map((word: any, j: number) => {
                   const isHighlighted = currentTime >= word.startTime && currentTime <= word.endTime;
                   
-                  // 🌟 לוגיקה לקביעת הצגת הפוריגנה
                   const hasReading = word.reading && word.reading.trim() !== '';
                   const shouldShowFurigana = hasReading && (
                     furiganaMode === 'all' || 
@@ -266,7 +311,7 @@ export default function SongsPage() {
         </div>
       )}
 
-      {/* ========== הפופ-אפים ========== */}
+      {/* ========== פופ-אפ מילה ========== */}
       <AnimatePresence>
         {selectedWord && (
           <motion.div
@@ -299,8 +344,8 @@ export default function SongsPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* 🌟 פופ-אפ שדרוג PRO מועתק במדויק */}
+      
+      {/* פופ אפ השדרוג (במידה ויש שגיאת רשת בלתי צפויה) */}
       {showProModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-300 px-4">
           <div className="bg-white dark:bg-[#1E293B] p-8 md:p-10 rounded-[2.5rem] shadow-2xl text-center max-w-md w-full transform animate-in zoom-in-95 duration-300 border border-blue-100 dark:border-blue-900/30 relative overflow-hidden" dir="rtl">
@@ -314,18 +359,10 @@ export default function SongsPage() {
               יצירת שירים עם סנכרון זמנים חכם ותרגום בעזרת בינה מלאכותית פתוחה למנויים. <br/>
               <span className="font-bold text-blue-600 dark:text-blue-400">שדרג למנוי PRO</span> כדי להמשיך לייצר שיעורים משירים.
             </p>
-            <button
-              onClick={() => {
-                setShowProModal(false);
-                router.push('/pricing');
-              }}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold py-4 px-6 rounded-2xl transition-all shadow-lg hover:shadow-blue-500/40 text-lg hover:-translate-y-1 mb-3"
-            >
+            <button onClick={() => { setShowProModal(false); router.push('/pricing'); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-4 px-6 rounded-2xl transition-all shadow-lg text-lg mb-3">
               ראה מסלולי תשלום
             </button>
-            <button onClick={() => setShowProModal(false)} className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 font-medium py-2">
-              הבנתי, תודה
-            </button>
+            <button onClick={() => setShowProModal(false)} className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 font-medium py-2">הבנתי, תודה</button>
           </div>
         </div>
       )}
