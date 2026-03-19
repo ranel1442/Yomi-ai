@@ -163,5 +163,38 @@ async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, m
     throw new Error('Failed to extract timestamps from audio using Gemini AI');
   }
 }
-// ייצוא כל הפונקציות!
-module.exports = { generateJapaneseStory, generateStoryQuiz, syncLyricsWithAudio };
+
+
+
+
+
+
+// 🌟 פונקציה חדשה לתרגום מילון מונחים
+async function translateJapaneseWords(wordsArray) {
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    generationConfig: { responseMimeType: 'application/json' }
+  });
+
+  const prompt = `
+  You are an expert Japanese to Hebrew translator.
+  I will give you a JSON array of Japanese words. 
+  Translate each word to Hebrew according to its most common meaning.
+  Return ONLY a valid JSON object where the keys are the exact Japanese words provided, and the values are their Hebrew translations.
+  
+  Words to translate:
+  ${JSON.stringify(wordsArray)}
+  `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    let text = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(text);
+  } catch (error) {
+    console.error('Translation error:', error);
+    return {}; // במקרה של שגיאה נחזיר אובייקט ריק כדי לא להקריס את השיר
+  }
+}
+
+// אל תשכח לעדכן את הייצוא בסוף הקובץ!
+module.exports = { generateJapaneseStory, generateStoryQuiz, syncLyricsWithAudio, translateJapaneseWords };

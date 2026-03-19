@@ -5,7 +5,8 @@ const supabase = require('../config/supabaseClient');
 // POST: שמירת מילה חדשה למועדפים
 router.post('/add', async (req, res) => {
   try {
-    const { userId, storyId, kanji, reading, meaning_hebrew, type } = req.body;
+    // 🌟 חילצנו גם את songId מהבקשה
+    const { userId, storyId, songId, kanji, reading, meaning_hebrew, type } = req.body;
 
     if (!kanji || !meaning_hebrew) {
       return res.status(400).json({ error: 'Kanji and meaning are required' });
@@ -17,6 +18,7 @@ router.post('/add', async (req, res) => {
         {
           user_id: userId || null,
           story_id: storyId || null,
+          song_id: songId || null, // 🌟 שומרים את השיר אם קיים
           kanji,
           reading,
           meaning_hebrew,
@@ -56,7 +58,6 @@ router.get('/:userId', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch flashcards' });
   }
 });
-
 
 // DELETE: מחיקת כרטיסייה
 router.delete('/:cardId', async (req, res) => {
