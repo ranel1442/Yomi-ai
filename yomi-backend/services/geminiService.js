@@ -94,7 +94,6 @@ async function generateStoryQuiz(storyText) {
 
 // 🌟 הפונקציה החדשה לסנכרון אודיו ומילים (הפיצ'ר החדש)
 // הפיצ'ר המשודרג: סנכרון עם בדיקה כפולה (Two-Pass)
-// 🌟 התיקון: הפונקציה עכשיו מקבלת אובייקט עם שמות מדויקים!
 async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, mimeType, lyricsText }) {
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-flash',
@@ -108,37 +107,49 @@ async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, m
     inlineData: { data: filteredAudioBuffer.toString("base64"), mimeType }
   };
 
+  // 1. אנחנו בונים את השלד ב-Node.js כדי למנוע מג'מיני להשמיט שורות (כולל אנגלית)
+  const lines = lyricsText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  const skeletonJson = lines.map(line => ({
+    text: line,
+    startTime: null,
+    endTime: null
+  }));
+
+  // הופכים את השלד למחרוזת כדי לשלוח לג'מיני
+  const skeletonString = JSON.stringify(skeletonJson, null, 2);
+
   const initialPrompt = `
-    You are an audio synchronization engine. Listen to this original Japanese song and map each line from the provided lyrics to its start and end time (in seconds).
-    
-    CRITICAL RULES:
-    1. ONLY use the exact lines provided in the lyrics. Do NOT invent, autocomplete, or add missing lyrics even if the singer sings them.
-    2. The song and lyrics may contain English words or Romaji. Treat them exactly like the Japanese words.
-    
-    Return ONLY a valid JSON array of objects with "text", "startTime", and "endTime".
-    Lyrics:
-    ${lyricsText}
-    `;
+  You are a highly strict audio synchronization engine. Listen to this song.
+  I am giving you a PRE-BUILT JSON array. 
+  Your ONLY job is to replace the "null" values for "startTime" and "endTime" (in seconds) by listening to the audio.
+  
+  CRITICAL RULES:
+  1. DO NOT add, remove, or modify ANY of the "text" fields. Keep the English and Japanese text exactly as it is.
+  2. Return the exact same JSON array length, just with the numbers filled in.
+  
+  Here is the JSON skeleton you must fill out:
+  ${skeletonString}
+  `;
+
   try {
-    console.log('Gemini Pass 1: Analyzing Original Audio for word detection...');
+    console.log(`Gemini Pass 1: Filling timestamps for ${lines.length} strict lines...`);
     const draftResult = await model.generateContent([initialPrompt, originalAudioPart]);
     let draftText = draftResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     
     const refinePrompt = `
-      You are an expert audio engineer. 
-      Here is a draft JSON containing timestamps for a Japanese song.
-      Listen to this VOCAL-ISOLATED version of the same song.
-      Your task is to heavily REFINE and CORRECT the "startTime" and "endTime" of the draft to be extremely precise to the millisecond based strictly on when the vocal chords hit.
-      
-      CRITICAL RULES:
-      1. DO NOT add new lines. DO NOT remove lines. Just fix the timing of the exact lines provided in the draft.
-      2. Handle English words naturally without breaking the JSON structure.
-      
-      Return ONLY the corrected JSON array.
-      Draft JSON:
-      ${draftText}
-      `;
-    console.log('Gemini Pass 2: Analyzing Filtered Audio for exact millisecond timing...');
+    You are an expert audio engineer. 
+    Here is a drafted JSON with timestamps. Listen to this VOCAL-ISOLATED version of the song to refine the timing.
+    Adjust the "startTime" and "endTime" to be precise to the millisecond.
+    
+    CRITICAL RULES:
+    1. Keep the exact same number of items.
+    2. Do NOT change the "text" fields under any circumstances.
+    
+    Draft JSON:
+    ${draftText}
+    `;
+
+    console.log('Gemini Pass 2: Refining precise timings...');
     const finalResult = await model.generateContent([refinePrompt, filteredAudioPart]);
     let finalText = finalResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
 
