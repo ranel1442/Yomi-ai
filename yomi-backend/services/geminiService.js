@@ -107,7 +107,6 @@ async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, m
     inlineData: { data: filteredAudioBuffer.toString("base64"), mimeType }
   };
 
-  // 1. אנחנו בונים את השלד ב-Node.js כדי למנוע מג'מיני להשמיט שורות (כולל אנגלית)
   const lines = lyricsText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   const skeletonJson = lines.map(line => ({
     text: line,
@@ -115,41 +114,44 @@ async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, m
     endTime: null
   }));
 
-  // הופכים את השלד למחרוזת כדי לשלוח לג'מיני
   const skeletonString = JSON.stringify(skeletonJson, null, 2);
 
+  // 🌟 העדכון הראשון: חוקי שתיקות וסולואים במעבר הראשון
   const initialPrompt = `
   You are a highly strict audio synchronization engine. Listen to this song.
   I am giving you a PRE-BUILT JSON array. 
   Your ONLY job is to replace the "null" values for "startTime" and "endTime" (in seconds) by listening to the audio.
   
-  CRITICAL RULES:
-  1. DO NOT add, remove, or modify ANY of the "text" fields. Keep the English and Japanese text exactly as it is.
-  2. Return the exact same JSON array length, just with the numbers filled in.
+  CRITICAL TIMING RULES:
+  1. DO NOT modify, add, or remove ANY "text" fields.
+  2. INSTRUMENTAL BREAKS: Songs have musical solos and long pauses. DO NOT stretch a line's "endTime" into a solo. The "endTime" MUST happen exactly when the singer's voice stops for that line.
+  3. REALISTIC DURATIONS: A typical sung line lasts 2 to 8 seconds. If there is a 20-second instrumental break, there MUST be a 20-second gap between the "endTime" of the current line and the "startTime" of the next line. DO NOT fill the silence.
   
   Here is the JSON skeleton you must fill out:
   ${skeletonString}
   `;
 
   try {
-    console.log(`Gemini Pass 1: Filling timestamps for ${lines.length} strict lines...`);
+    console.log(`Gemini Pass 1: Filling timestamps for ${lines.length} strict lines with gap detection...`);
     const draftResult = await model.generateContent([initialPrompt, originalAudioPart]);
     let draftText = draftResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     
+    // 🌟 העדכון השני: חידוד מושלם של השתיקות במעבר השני על האודיו הנקי
     const refinePrompt = `
     You are an expert audio engineer. 
     Here is a drafted JSON with timestamps. Listen to this VOCAL-ISOLATED version of the song to refine the timing.
     Adjust the "startTime" and "endTime" to be precise to the millisecond.
     
-    CRITICAL RULES:
-    1. Keep the exact same number of items.
-    2. Do NOT change the "text" fields under any circumstances.
+    CRITICAL TIMING RULES:
+    1. Do NOT change the "text" fields.
+    2. PAY ATTENTION TO SILENCE: In this vocal-isolated version, instrumental breaks will sound like pure silence. 
+    3. Make absolutely sure the "endTime" of a line cuts off the moment the voice stops. Do not let timestamps bleed into the silent instrumental sections.
     
     Draft JSON:
     ${draftText}
     `;
 
-    console.log('Gemini Pass 2: Refining precise timings...');
+    console.log('Gemini Pass 2: Refining precise timings and cutting out instrumental gaps...');
     const finalResult = await model.generateContent([refinePrompt, filteredAudioPart]);
     let finalText = finalResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
 
@@ -159,6 +161,5 @@ async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, m
     throw new Error('Failed to extract timestamps from audio using Gemini AI');
   }
 }
-
 // ייצוא כל הפונקציות!
 module.exports = { generateJapaneseStory, generateStoryQuiz, syncLyricsWithAudio };
