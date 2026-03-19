@@ -148,6 +148,7 @@ export const createPortalSession = async (stripeCustomerId: string) => {
 
 export const processSongWithGemini = async (formData: FormData) => {
   try {
+    
     const response = await axios.post(`${API_URL}/songs/process`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
