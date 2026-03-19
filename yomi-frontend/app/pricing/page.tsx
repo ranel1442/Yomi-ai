@@ -13,7 +13,6 @@ export default function PricingPage() {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
   // הפונקציה: מעבר לתשלום ב-Lemon Squeezy
-// הפונקציה: מעבר לתשלום ב-Lemon Squeezy
   const handleSubscribe = () => {
     if (!user || !user.id) {
       router.push('/login');
@@ -28,7 +27,6 @@ export default function PricingPage() {
 
       const baseUrl = isAnnual ? yearlyUrl : monthlyUrl;
       
-      // 🌟 הוספנו את המייל ואת המדינה (IL) לקישור!
       const userEmail = encodeURIComponent(user.email || '');
       const checkoutUrl = `${baseUrl}?checkout[custom][user_id]=${user.id}&checkout[email]=${userEmail}&checkout[billing_address][country]=IL`;
       
@@ -50,7 +48,6 @@ export default function PricingPage() {
     setIsCheckoutLoading(true);
     window.location.href = 'https://app.lemonsqueezy.com/my-orders';
     
-    // 🌟 התיקון גם כאן
     setTimeout(() => {
       setIsCheckoutLoading(false);
     }, 2000);
@@ -77,7 +74,7 @@ export default function PricingPage() {
             השקעה קטנה, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">שליטה מלאה ביפנית.</span>
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            בחר את המסלול שמתאים לך והתחל לקרוא טקסטים יפניים בכל רמה שתרצה, ללא מגבלות וללא מעצורים.
+            בחר את המסלול שמתאים לך והתחל ללמוד דרך טקסטים ושירים בכל רמה שתרצה, ללא מגבלות וללא מעצורים.
           </p>
         </div>
 
@@ -105,7 +102,7 @@ export default function PricingPage() {
 
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           
-          {/* כרטיס חינמי */}
+          {/* ========== כרטיס חינמי ========== */}
           <div className="bg-white dark:bg-[#111827] rounded-[2.5rem] p-8 md:p-10 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col transition-transform hover:scale-[1.02]">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">מתחילים (חינם)</h2>
@@ -118,9 +115,13 @@ export default function PricingPage() {
             
             <ul className="space-y-4 mb-10 flex-1 text-gray-700 dark:text-gray-300 font-medium">
               <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> סיפור 1 ביום</li>
+              {/* הוספנו את השיר לניסיון */}
+              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> שיר 1 לניסיון (סה"כ)</li>
               <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> תמיכה ברמת N5 בלבד</li>
               <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> שמירת כרטיסיות מילים</li>
               <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> ללא הגבלת טקסטים יומיים</li>
+              {/* חסימת שירים למסלול החינמי */}
+              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> יצירת שירים ללא הגבלה</li>
               <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> גישה לרמות N4 עד N1</li>
               <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> ייצוא כרטיסיות ל-Anki</li>
             </ul>
@@ -130,7 +131,7 @@ export default function PricingPage() {
             </button>
           </div>
 
-          {/* כרטיס פרו 👑 */}
+          {/* ========== כרטיס פרו 👑 ========== */}
           <div className="bg-white dark:bg-[#1E293B] rounded-[2.5rem] p-8 md:p-10 shadow-2xl dark:shadow-[0_0_40px_rgba(0,0,0,0.5)] border-2 border-blue-500 relative flex flex-col transform md:-translate-y-4 hover:scale-[1.02] transition-transform">
             
             <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 shadow-lg whitespace-nowrap">
@@ -158,6 +159,8 @@ export default function PricingPage() {
             
             <ul className="space-y-4 mb-10 flex-1 text-gray-700 dark:text-gray-200 font-bold">
               <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> יצירת טקסטים <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">ללא הגבלה!</span></li>
+              {/* הוספנו את השירים למסלול הפרו! */}
+              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> יצירת שירים אינטראקטיביים <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">ללא הגבלה!</span></li>
               <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> גישה לרמות N4 עד N1</li>
               <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> ייצוא כרטיסיות לתוכנת Anki</li>
               <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> קדימות בעיבוד (AI מהיר יותר)</li>
