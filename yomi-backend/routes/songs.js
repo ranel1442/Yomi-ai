@@ -4,7 +4,7 @@ const multer = require('multer');
 const geminiService = require('../services/geminiService');
 const songService = require('../services/songService');
 const audioFilterService = require('../services/audioFilterService');
-const supabase = require('../config/supabaseClient'); // הייבוא של סופאבייס
+const supabase = require('../config/supabaseClient');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -12,11 +12,63 @@ router.post('/process', upload.single('audio'), async (req, res) => {
     try {
         const audioFile = req.file;
         const lyricsText = req.body.lyrics; 
-        const userId = req.body.userId || 'anonymous'; // נקבל את המזהה מהפרונטנד
+        const userId = req.body.userId;
 
-        if (!audioFile || !lyricsText) {
-            return res.status(400).json({ error: 'יש להעלות קובץ אודיו ולהדביק את מילות השיר' });
+        // 🔒 הגנה בסיסית: חובה שיהיה קובץ, מילים ומשתמש מזוהה
+        if (!audioFile || !lyricsText || !userId || userId === 'anonymous') {
+            return res.status(400).json({ error: 'יש להעלות קובץ אודיו, מילים, ולהיות מחובר למערכת.' });
         }
+
+        // 🔒 שלב א': בדיקה במסד הנתונים האם המשתמש הוא PRO
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('is_pro')
+            .eq('user_id', userId)
+            .single();
+
+        const isPro = profile?.is_pro === true;
+
+        // 🔒 שלב ב': הגבלה למשתמש חינמי - שיר 1 בלבד לכל החיים (Total Limit)
+        if (!isPro) {
+            // סופרים כמה שירים יש למשתמש בטבלה בכלל
+            const { count, error: countError } = await supabase
+                .from('user_songs')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId);
+
+            if (countError) throw countError;
+
+            if (count >= 1) {
+                console.log(`[Security] Blocked free user ${userId} from generating more than 1 song total`);
+                return res.status(403).json({ 
+                    error: 'משתמשים במסלול החינמי זכאים ליצירת שיר אחד בלבד. שדרג ל-PRO כדי ליצור שירים נוספים!',
+                    requiresPro: true 
+                });
+            }
+        }
+
+        /*
+        // 🔒 אופציונלי לעתיד: הגבלת משתמשי PRO (למשל, לשיר 1 ביום)
+        if (isPro) {
+            const startOfDay = new Date();
+            startOfDay.setUTCHours(0, 0, 0, 0);
+
+            const { count, error: proCountError } = await supabase
+                .from('user_songs')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId)
+                .gte('created_at', startOfDay.toISOString());
+
+            if (proCountError) throw proCountError;
+
+            if (count >= 1) {
+                console.log(`[Security] Blocked PRO user ${userId} from generating more than 1 song today`);
+                return res.status(429).json({ error: 'הגעת למכסת השירים היומית למנויי PRO.' });
+            }
+        }
+        */
+
+        // --- הכל תקין והמשתמש מורשה! מתחילים בעיבוד השיר --- //
 
         console.log('מייצר גרסת אודיו מסוננת (ללא תופים ובס)...');
         const cleanAudioBuffer = await audioFilterService.isolateVocals(audioFile.buffer);
@@ -29,14 +81,12 @@ router.post('/process', upload.single('audio'), async (req, res) => {
             lyricsText: lyricsText
         });
 
-        console.log('מפרק למילים ומחלק זמנים עם Kuromoji...');
+        console.log('מפרק למילים ומחלק זמנים עם Kuromoji + מתרגם...');
         const finalLyricsData = await songService.processGeminiLyrics(geminiSyncData);
 
-        // 🌟 שלב חדש: שמירה בסופאבייס
         console.log('מעלה את השיר ל-Supabase Storage...');
         const fileName = `${Date.now()}-song.mp3`;
         
-        // העלאת ה-Buffer של האודיו ל-Bucket שיצרנו
         const { error: uploadError } = await supabase.storage
             .from('songs_audio')
             .upload(fileName, audioFile.buffer, {
@@ -46,14 +96,12 @@ router.post('/process', upload.single('audio'), async (req, res) => {
 
         if (uploadError) throw new Error(`שגיאה בהעלאת הקובץ לאחסון: ${uploadError.message}`);
 
-        // קבלת הקישור הפומבי לשיר
         const { data: publicUrlData } = supabase.storage
             .from('songs_audio')
             .getPublicUrl(fileName);
         const audioUrl = publicUrlData.publicUrl;
 
         console.log('שומר את הנתונים במסד הנתונים...');
-        // שמירת הרשומה בטבלה שיצרנו
         const { data: dbData, error: dbError } = await supabase
             .from('user_songs')
             .insert({
@@ -69,7 +117,7 @@ router.post('/process', upload.single('audio'), async (req, res) => {
         console.log('התהליך הושלם בהצלחה!');
         res.status(200).json({
             message: 'השיר עובד ונשמר בהצלחה',
-            songData: dbData // מחזירים לפרונטנד את כל המידע מהדאטה-בייס
+            songData: dbData 
         });
 
     } catch (error) {
