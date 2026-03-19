@@ -126,4 +126,43 @@ router.post('/process', upload.single('audio'), async (req, res) => {
     }
 });
 
+
+// GET: שליפת כל השירים השמורים של משתמש
+router.get('/user/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { data, error } = await supabase
+            .from('user_songs')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        res.status(200).json(data);
+    } catch (error) {
+        console.error('Error fetching songs:', error);
+        res.status(500).json({ error: 'Failed to fetch songs' });
+    }
+});
+
+// DELETE: מחיקת שיר
+router.delete('/:songId', async (req, res) => {
+    try {
+        const { songId } = req.params;
+        
+        // מחיקה מהדאטה-בייס (טריגר ה-CASCADE שכתבנו ימחק גם את הפלאשקארדס שקשורים לשיר!)
+        const { error } = await supabase
+            .from('user_songs')
+            .delete()
+            .eq('id', songId);
+
+        if (error) throw error;
+        res.status(200).json({ message: 'Song deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting song:', error);
+        res.status(500).json({ error: 'Failed to delete song' });
+    }
+});
+
+
 module.exports = router;

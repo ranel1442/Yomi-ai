@@ -160,3 +160,24 @@ export const processSongWithGemini = async (formData: FormData) => {
     throw error;
   }
 };
+
+
+export const getUserSongs = async (userId: string) => {
+  try {
+    const response = await axios.get(`${API_URL}/songs/user/${userId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching user songs:', error);
+    throw error;
+  }
+};
+
+export const deleteSong = async (songId: string) => {
+  try {
+    const response = await axios.delete(`${API_URL}/songs/${songId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting song:', error);
+    throw error;
+  }
+};
