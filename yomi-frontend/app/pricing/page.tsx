@@ -22,8 +22,8 @@ export default function PricingPage() {
     try {
       setIsCheckoutLoading(true);
       
-      const monthlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/66fffbaf-5101-45bc-b1cb-069fc568e0af';
-      const yearlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/5fd418e2-8fad-4950-b639-aa40d1413349';
+      const monthlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/05122579-ffbb-4f66-a59b-b643d79829e2';
+      const yearlyUrl = 'https://yomiai.lemonsqueezy.com/checkout/buy/ba96579f-fe3e-490f-8ce1-c51e8823b255';
 
       const baseUrl = isAnnual ? yearlyUrl : monthlyUrl;
       
