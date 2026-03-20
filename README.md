@@ -1,6 +1,6 @@
 # 🌸 Yomi-AI | The Smart Way to Learn Japanese
 
-![Yomi-AI Banner](https://via.placeholder.com/1200x400/0B0F19/FFFFFF?text=Yomi-AI+-+Learn+Japanese+with+AI)
+![Yomi-AI Banner](https://yomi-ai-cyan.vercel.app/)
 
 Yomi-AI is an advanced, AI-powered platform designed to make learning Japanese engaging, intuitive, and highly effective. By combining dynamic flashcards, personalized AI-generated stories, and high-fidelity text-to-speech, Yomi-AI offers a complete language immersion experience.
 
