@@ -6,7 +6,7 @@ import { Music, UploadCloud, Loader2, Play, Bookmark, X, Crown, Eye, Brain, EyeO
 import { processSongWithGemini, generateAudio, saveFlashcard } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../services/supabase'; // 🌟 ייבוא סופאבייס לבדיקה המוקדמת
+import { supabase } from '../../services/supabase';
 
 const kata2Hira = (str: string) => {
   if (!str) return str;
@@ -18,7 +18,8 @@ const kata2Hira = (str: string) => {
 type FuriganaMode = 'all' | 'firstTime' | 'none';
 
 export default function SongsPage() {
-  const { user, isPro } = useAuth();
+  // 🌟 התיקון: משכנו את authLoading מה-Hook
+  const { user, isPro, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -36,28 +37,29 @@ export default function SongsPage() {
   const [showProModal, setShowProModal] = useState(false);
   const [furiganaMode, setFuriganaMode] = useState<FuriganaMode>('all');
   
-  // 🌟 סטייט למגבלה, מתחיל כ-false ויתעדכן בטעינה
   const [limitReached, setLimitReached] = useState(false);
   const [isCheckingLimit, setIsCheckingLimit] = useState(true);
 
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // 🌟 בדיקה מראש (Pre-check) ברגע שהעמוד נטען
+  // 🌟 התיקון ב-useEffect
   useEffect(() => {
+    // אם מערכת ההתחברות עדיין טוענת את נתוני המשתמש (וה-PRO), אל תעשה כלום! נחכה.
+    if (authLoading) return;
+
     const checkUserLimit = async () => {
       if (!user) {
         setIsCheckingLimit(false);
         return;
       }
       
-      // אם הוא פרו, אין מגבלה
+      // ברגע שהגענו לכאן, אנחנו בטוחים ש-isPro מעודכן למצב האמיתי שלו
       if (isPro) {
         setLimitReached(false);
         setIsCheckingLimit(false);
         return;
       }
 
-      // אם הוא חינמי, נבדוק כמה שירים יש לו כבר
       try {
         const { count, error } = await supabase
           .from('user_songs')
@@ -66,6 +68,8 @@ export default function SongsPage() {
 
         if (!error && count && count >= 1) {
           setLimitReached(true);
+        } else {
+          setLimitReached(false);
         }
       } catch (err) {
         console.error('Error checking limit:', err);
@@ -75,7 +79,7 @@ export default function SongsPage() {
     };
 
     checkUserLimit();
-  }, [user, isPro]);
+  }, [user, isPro, authLoading]); // הוספנו את authLoading למעקב
 
   useEffect(() => {
     return () => {
@@ -93,7 +97,7 @@ export default function SongsPage() {
   };
 
   const handleSubmit = async () => {
-    if (limitReached && !isPro) return; // חסימה נוספת ליתר ביטחון
+    if (limitReached && !isPro) return;
 
     if (!audioFile || !lyrics.trim()) {
       alert('יש להעלות קובץ אודיו ולהזין מילים');
@@ -188,11 +192,9 @@ export default function SongsPage() {
         למידה דרך שירים
       </h1>
 
-      {/* ========== טופס יצירה (עם מצב חסום) ========== */}
       {!syncData && (
         <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col gap-6 relative overflow-hidden">
           
-          {/* אפקט עמום אם המשתמש חסום */}
           {limitReached && <div className="absolute inset-0 bg-gray-50/50 dark:bg-[#0B0F19]/60 z-10 pointer-events-none"></div>}
 
           <div className="relative z-20">
@@ -202,7 +204,7 @@ export default function SongsPage() {
                 type="file" 
                 accept="audio/*" 
                 onChange={handleFileChange} 
-                disabled={limitReached || isCheckingLimit} 
+                disabled={limitReached || isCheckingLimit || authLoading} 
                 className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-400 hover:file:bg-blue-100 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" 
               />
               {limitReached && <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />}
@@ -216,21 +218,19 @@ export default function SongsPage() {
                 rows={8} 
                 value={limitReached ? '' : lyrics} 
                 onChange={(e) => setLyrics(e.target.value)} 
-                disabled={limitReached || isCheckingLimit}
-                placeholder={isCheckingLimit ? "בודק הרשאות..." : limitReached ? "הגעת למגבלת השירים החינמית..." : "הדבק כאן את הטקסט..."} 
+                disabled={limitReached || isCheckingLimit || authLoading}
+                placeholder={isCheckingLimit || authLoading ? "בודק הרשאות..." : limitReached ? "הגעת למגבלת השירים החינמית..." : "הדבק כאן את הטקסט..."} 
                 className={`w-full rounded-xl border p-4 outline-none resize-none transition-all ${
                   limitReached 
                     ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
                     : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
                 }`}
-                // 🌟 כאן הקסם: הכיוון משתנה בהתאם למצב
                 dir={limitReached ? "rtl" : "ltr"} 
               />
               {limitReached && <Lock size={24} className="absolute left-4 top-4 text-gray-400" />}
             </div>
           </div>
           
-          {/* 🌟 כפתור דינמי שמשתנה אם המשתמש הגיע למגבלה (מעוצב בדיוק כמו בסיפורים) */}
           <div className="relative z-20">
             {limitReached ? (
               <button 
@@ -242,7 +242,7 @@ export default function SongsPage() {
             ) : (
               <button 
                 onClick={handleSubmit} 
-                disabled={isLoading || !audioFile || !lyrics || isCheckingLimit} 
+                disabled={isLoading || !audioFile || !lyrics || isCheckingLimit || authLoading} 
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all flex justify-center items-center gap-2 shadow-sm"
               >
                 {isLoading ? <><Loader2 className="animate-spin" size={20} /> מנתח ומעלה למסד הנתונים...</> : <><UploadCloud size={20} /> צור שיעור אינטראקטיבי</>}
@@ -252,7 +252,6 @@ export default function SongsPage() {
         </div>
       )}
 
-      {/* ========== נגן ותצוגת השיר ========== */}
       {syncData && (
         <div className="flex flex-col gap-6">
           <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 sticky top-24 z-10 flex flex-col gap-4">
@@ -312,7 +311,6 @@ export default function SongsPage() {
         </div>
       )}
 
-      {/* ========== פופ-אפ מילה ========== */}
       <AnimatePresence>
         {selectedWord && (
           <motion.div
@@ -346,7 +344,6 @@ export default function SongsPage() {
         )}
       </AnimatePresence>
       
-      {/* פופ אפ השדרוג (במידה ויש שגיאת רשת בלתי צפויה) */}
       {showProModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-300 px-4">
           <div className="bg-white dark:bg-[#1E293B] p-8 md:p-10 rounded-[2.5rem] shadow-2xl text-center max-w-md w-full transform animate-in zoom-in-95 duration-300 border border-blue-100 dark:border-blue-900/30 relative overflow-hidden" dir="rtl">
