@@ -178,15 +178,18 @@ export default function HistoryPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {songs.map((song) => {
-                  // ניקח את השורה הראשונה של השיר בתור הכותרת של הכרטיסייה
-                  const firstLine = song.lyrics_data?.[0]?.lineText || 'שיר ללא מילים';
+                  // 🌟 זה הקסם של התמיכה לאחור: 
+                  // אם יש title במסד הוא יוצג. אם לא, הוא יחפש את השורה הראשונה. ואם אין שום דבר, "שיר ללא שם".
+                  const displayTitle = song.title || song.lyrics_data?.[0]?.lineText || 'שיר ללא שם';
                   
                   return (
                     <div key={song.id} onClick={() => setSelectedSong(song)} className="bg-white dark:bg-[#111827] p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between h-52 relative group">
                       <button onClick={(e) => handleDeleteSong(e, song.id)} className="absolute top-4 left-4 text-gray-400 hover:text-red-500 transition-colors bg-gray-50 dark:bg-[#1E293B] rounded-full p-2 opacity-0 group-hover:opacity-100 shadow-sm z-10"><Trash2 size={18} /></button>
                       <div className="flex flex-col h-full items-center justify-center text-center px-4">
                         <Music size={40} className="text-blue-500 mb-4 opacity-80 group-hover:scale-110 transition-transform duration-300" />
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 line-clamp-2 leading-snug">{firstLine}</h3>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 line-clamp-2 leading-snug" dir="auto">
+                          {displayTitle}
+                        </h3>
                       </div>
                       <div className="text-xs text-gray-400 mt-auto font-mono text-left" dir="ltr">{new Date(song.created_at).toLocaleDateString('he-IL')}</div>
                     </div>

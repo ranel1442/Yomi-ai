@@ -18,10 +18,10 @@ const kata2Hira = (str: string) => {
 type FuriganaMode = 'all' | 'firstTime' | 'none';
 
 export default function SongsPage() {
-  // 🌟 התיקון: משכנו את authLoading מה-Hook
   const { user, isPro, loading: authLoading } = useAuth();
   const router = useRouter();
 
+  const [songTitle, setSongTitle] = useState(''); // השדה החדש לשם השיר
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [lyrics, setLyrics] = useState('');
@@ -42,9 +42,7 @@ export default function SongsPage() {
 
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // 🌟 התיקון ב-useEffect
   useEffect(() => {
-    // אם מערכת ההתחברות עדיין טוענת את נתוני המשתמש (וה-PRO), אל תעשה כלום! נחכה.
     if (authLoading) return;
 
     const checkUserLimit = async () => {
@@ -53,7 +51,6 @@ export default function SongsPage() {
         return;
       }
       
-      // ברגע שהגענו לכאן, אנחנו בטוחים ש-isPro מעודכן למצב האמיתי שלו
       if (isPro) {
         setLimitReached(false);
         setIsCheckingLimit(false);
@@ -79,7 +76,7 @@ export default function SongsPage() {
     };
 
     checkUserLimit();
-  }, [user, isPro, authLoading]); // הוספנו את authLoading למעקב
+  }, [user, isPro, authLoading]);
 
   useEffect(() => {
     return () => {
@@ -99,8 +96,9 @@ export default function SongsPage() {
   const handleSubmit = async () => {
     if (limitReached && !isPro) return;
 
-    if (!audioFile || !lyrics.trim()) {
-      alert('יש להעלות קובץ אודיו ולהזין מילים');
+    // הוספנו כאן את הבדיקה לשם השיר
+    if (!songTitle.trim() || !audioFile || !lyrics.trim()) {
+      alert('יש למלא את שם השיר, להעלות קובץ אודיו ולהזין מילים');
       return;
     }
 
@@ -108,6 +106,7 @@ export default function SongsPage() {
     
     try {
       const formData = new FormData();
+      formData.append('title', songTitle); // שליחת השם לבאקנד
       formData.append('audio', audioFile);
       formData.append('lyrics', lyrics);
       if (user) formData.append('userId', user.id);
@@ -197,8 +196,30 @@ export default function SongsPage() {
           
           {limitReached && <div className="absolute inset-0 bg-gray-50/50 dark:bg-[#0B0F19]/60 z-10 pointer-events-none"></div>}
 
+          {/* שדה 1: שם השיר */}
           <div className="relative z-20">
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">1. בחר קובץ MP3</label>
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">1. שם השיר</label>
+            <div className="relative">
+              <input 
+                type="text" 
+                value={limitReached ? '' : songTitle}
+                onChange={(e) => setSongTitle(e.target.value)}
+                disabled={limitReached || isCheckingLimit || authLoading}
+                placeholder={isCheckingLimit || authLoading ? "בודק הרשאות..." : "לדוגמה: יום בהיר אחד..."}
+                className={`w-full rounded-xl border p-4 outline-none transition-all ${
+                  limitReached 
+                    ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
+                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
+                }`}
+                dir={limitReached ? "rtl" : "auto"} 
+              />
+              {limitReached && <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />}
+            </div>
+          </div>
+
+          {/* שדה 2: קובץ MP3 */}
+          <div className="relative z-20">
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">2. בחר קובץ MP3</label>
             <div className={`relative rounded-xl border ${limitReached ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 opacity-70' : 'border-transparent'}`}>
               <input 
                 type="file" 
@@ -211,8 +232,9 @@ export default function SongsPage() {
             </div>
           </div>
 
+          {/* שדה 3: מילות השיר */}
           <div className="relative z-20">
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">2. הדבק את מילות השיר ביפנית</label>
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">3. הדבק את מילות השיר ביפנית</label>
             <div className="relative">
               <textarea 
                 rows={8} 
@@ -242,7 +264,7 @@ export default function SongsPage() {
             ) : (
               <button 
                 onClick={handleSubmit} 
-                disabled={isLoading || !audioFile || !lyrics || isCheckingLimit || authLoading} 
+                disabled={isLoading || !audioFile || !lyrics || !songTitle || isCheckingLimit || authLoading} 
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all flex justify-center items-center gap-2 shadow-sm"
               >
                 {isLoading ? <><Loader2 className="animate-spin" size={20} /> מנתח ומעלה למסד הנתונים...</> : <><UploadCloud size={20} /> צור שיעור אינטראקטיבי</>}

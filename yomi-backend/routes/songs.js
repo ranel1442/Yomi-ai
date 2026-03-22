@@ -8,11 +8,13 @@ const supabase = require('../config/supabaseClient');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// POST: יצירת שיר חדש
 router.post('/process', upload.single('audio'), async (req, res) => {
     try {
         const audioFile = req.file;
         const lyricsText = req.body.lyrics; 
         const userId = req.body.userId;
+        const title = req.body.title || 'שיר ללא שם'; // 🌟 תופסים את שם השיר מהבקשה
 
         // 🔒 הגנה בסיסית: חובה שיהיה קובץ, מילים ומשתמש מזוהה
         if (!audioFile || !lyricsText || !userId || userId === 'anonymous') {
@@ -106,6 +108,7 @@ router.post('/process', upload.single('audio'), async (req, res) => {
             .from('user_songs')
             .insert({
                 user_id: userId,
+                title: title, // 🌟 שומרים את השם במסד הנתונים
                 audio_url: audioUrl,
                 lyrics_data: finalLyricsData
             })
@@ -125,7 +128,6 @@ router.post('/process', upload.single('audio'), async (req, res) => {
         res.status(500).json({ error: 'שגיאה פנימית בעיבוד השיר והמילים' });
     }
 });
-
 
 // GET: שליפת כל השירים השמורים של משתמש
 router.get('/user/:userId', async (req, res) => {
@@ -150,7 +152,6 @@ router.delete('/:songId', async (req, res) => {
     try {
         const { songId } = req.params;
         
-        // מחיקה מהדאטה-בייס (טריגר ה-CASCADE שכתבנו ימחק גם את הפלאשקארדס שקשורים לשיר!)
         const { error } = await supabase
             .from('user_songs')
             .delete()
@@ -163,6 +164,5 @@ router.delete('/:songId', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete song' });
     }
 });
-
 
 module.exports = router;
