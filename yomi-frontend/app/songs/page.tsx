@@ -21,7 +21,7 @@ export default function SongsPage() {
   const { user, isPro, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [songTitle, setSongTitle] = useState(''); // השדה החדש לשם השיר
+  const [songTitle, setSongTitle] = useState(''); 
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [lyrics, setLyrics] = useState('');
@@ -96,7 +96,6 @@ export default function SongsPage() {
   const handleSubmit = async () => {
     if (limitReached && !isPro) return;
 
-    // הוספנו כאן את הבדיקה לשם השיר
     if (!songTitle.trim() || !audioFile || !lyrics.trim()) {
       alert('יש למלא את שם השיר, להעלות קובץ אודיו ולהזין מילים');
       return;
@@ -106,7 +105,7 @@ export default function SongsPage() {
     
     try {
       const formData = new FormData();
-      formData.append('title', songTitle); // שליחת השם לבאקנד
+      formData.append('title', songTitle); 
       formData.append('audio', audioFile);
       formData.append('lyrics', lyrics);
       if (user) formData.append('userId', user.id);
@@ -196,7 +195,7 @@ export default function SongsPage() {
           
           {limitReached && <div className="absolute inset-0 bg-gray-50/50 dark:bg-[#0B0F19]/60 z-10 pointer-events-none"></div>}
 
-          {/* שדה 1: שם השיר */}
+          {/* 🌟 שדה 1: שם השיר - עם dir="auto" */}
           <div className="relative z-20">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">1. שם השיר</label>
             <div className="relative">
@@ -211,13 +210,12 @@ export default function SongsPage() {
                     ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
                     : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
                 }`}
-                dir={limitReached ? "rtl" : "auto"} 
+                dir="auto" 
               />
               {limitReached && <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />}
             </div>
           </div>
 
-          {/* שדה 2: קובץ MP3 */}
           <div className="relative z-20">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">2. בחר קובץ MP3</label>
             <div className={`relative rounded-xl border ${limitReached ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 opacity-70' : 'border-transparent'}`}>
@@ -232,7 +230,7 @@ export default function SongsPage() {
             </div>
           </div>
 
-          {/* שדה 3: מילות השיר */}
+          {/* 🌟 שדה 3: מילות השיר - עם dir="auto" */}
           <div className="relative z-20">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">3. הדבק את מילות השיר ביפנית</label>
             <div className="relative">
@@ -247,7 +245,7 @@ export default function SongsPage() {
                     ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
                     : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
                 }`}
-                dir={limitReached ? "rtl" : "ltr"} 
+                dir="auto" 
               />
               {limitReached && <Lock size={24} className="absolute left-4 top-4 text-gray-400" />}
             </div>
@@ -298,9 +296,10 @@ export default function SongsPage() {
             )}
           </div>
 
-          <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 md:p-10 shadow-sm border border-gray-100 dark:border-gray-800 leading-[3.5] text-center min-h-[50vh] pb-32" dir="ltr">
+          {/* 🌟 שינוי מהותי כאן: שימוש ב-flex כדי לנעול את המילים משמאל לימין! */}
+          <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 md:p-10 shadow-sm border border-gray-100 dark:border-gray-800 min-h-[50vh] pb-32" dir="ltr">
             {syncData.map((line: any, i: number) => (
-              <div key={i} className="mb-6">
+              <div key={i} className="mb-8 flex flex-wrap justify-center gap-x-2 gap-y-4" dir="ltr">
                 {line.words.map((word: any, j: number) => {
                   const isHighlighted = currentTime >= word.startTime && currentTime <= word.endTime;
                   
@@ -314,12 +313,12 @@ export default function SongsPage() {
                     <span 
                       key={j} 
                       onClick={() => setSelectedWord(word)}
-                      className={`cursor-pointer mx-1.5 px-1 rounded transition-all duration-150 inline-block ${
+                      className={`cursor-pointer px-1 py-1 rounded transition-all duration-150 flex flex-col items-center justify-end ${
                         isHighlighted ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 font-bold scale-110 shadow-sm' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200'
                       }`}
                     >
                       <ruby className="text-xl md:text-2xl flex flex-col items-center">
-                        <rt className={`text-[10px] md:text-xs text-gray-500 font-normal transition-all duration-300 ${!shouldShowFurigana ? 'opacity-0 select-none' : 'opacity-100'}`}>
+                        <rt className={`text-[10px] md:text-xs text-gray-500 font-normal transition-all duration-300 mb-1 ${!shouldShowFurigana ? 'opacity-0 select-none' : 'opacity-100'}`}>
                           {kata2Hira(word.reading) || ' '}
                         </rt>
                         {word.word}
