@@ -195,7 +195,7 @@ export default function SongsPage() {
           
           {limitReached && <div className="absolute inset-0 bg-gray-50/50 dark:bg-[#0B0F19]/60 z-10 pointer-events-none"></div>}
 
-          {/* 🌟 שדה 1: שם השיר - עם dir="auto" */}
+          {/* 🌟 שדה 1: שם השיר - לוגיקת כיוון דינמית */}
           <div className="relative z-20">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">1. שם השיר</label>
             <div className="relative">
@@ -210,7 +210,8 @@ export default function SongsPage() {
                     ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
                     : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
                 }`}
-                dir="auto" 
+                // הפתרון: אם ריק - RTL (עברית). אם יש טקסט - AUTO (יתאים לטקסט).
+                dir={limitReached || !songTitle ? "rtl" : "auto"} 
               />
               {limitReached && <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />}
             </div>
@@ -230,7 +231,7 @@ export default function SongsPage() {
             </div>
           </div>
 
-          {/* 🌟 שדה 3: מילות השיר - עם dir="auto" */}
+          {/* 🌟 שדה 3: מילות השיר - לוגיקת כיוון דינמית */}
           <div className="relative z-20">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">3. הדבק את מילות השיר ביפנית</label>
             <div className="relative">
@@ -245,7 +246,8 @@ export default function SongsPage() {
                     ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
                     : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
                 }`}
-                dir="auto" 
+                // הפתרון: אם ריק - RTL (עברית). אם יש טקסט - AUTO (יתאים לטקסט).
+                dir={limitReached || !lyrics ? "rtl" : "auto"} 
               />
               {limitReached && <Lock size={24} className="absolute left-4 top-4 text-gray-400" />}
             </div>
@@ -296,7 +298,6 @@ export default function SongsPage() {
             )}
           </div>
 
-          {/* 🌟 שינוי מהותי כאן: שימוש ב-flex כדי לנעול את המילים משמאל לימין! */}
           <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 md:p-10 shadow-sm border border-gray-100 dark:border-gray-800 min-h-[50vh] pb-32" dir="ltr">
             {syncData.map((line: any, i: number) => (
               <div key={i} className="mb-8 flex flex-wrap justify-center gap-x-2 gap-y-4" dir="ltr">
