@@ -6,9 +6,12 @@ const os = require('os');
 
 const downloadAudioAsMp3Buffer = async (youtubeUrl) => {
     const tempFilePath = path.join(os.tmpdir(), `yt-${Date.now()}.mp3`);
+    
+    // הגדרת הנתיב לקובץ העוגיות שלנו
+    const cookiesPath = path.join(__dirname, '../youtube-cookies.txt');
 
     try {
-        console.log(`מתחיל הורדה עם yt-dlp (הסוואה לאנדרואיד) עבור: ${youtubeUrl}`);
+        console.log(`מתחיל הורדה עם yt-dlp ושימוש בעוגיות עבור: ${youtubeUrl}`);
         
         await youtubedl(youtubeUrl, {
             extractAudio: true,
@@ -19,8 +22,8 @@ const downloadAudioAsMp3Buffer = async (youtubeUrl) => {
             noCheckCertificates: true,
             preferFreeFormats: true,
             noPlaylist: true,
-            // 🌟 הטריק נגד חסימות הבוטים: מתחזים לאפליקציית אנדרואיד
-            extractorArgs: 'youtube:player_client=android'
+            // 🌟 הפתרון לחסימת הבוטים: שימוש בעוגיות אמיתיות של דפדפן
+            cookies: fs.existsSync(cookiesPath) ? cookiesPath : undefined
         });
 
         console.log('ההורדה הסתיימה, קורא את הקובץ לזיכרון השרת...');
