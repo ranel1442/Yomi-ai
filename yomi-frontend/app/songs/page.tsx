@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Music, UploadCloud, Loader2, Play, Bookmark, X, Crown, Eye, Brain, EyeOff, Lock } from 'lucide-react';
-import { processSongWithGemini, generateAudio, saveFlashcard } from '../../services/api';
+import { Music, UploadCloud, Loader2, Play, Bookmark, X, Crown, Eye, Brain, EyeOff, Lock, Youtube, FileAudio } from 'lucide-react';
+import { processSongWithGemini, generateAudio, saveFlashcard, processSongFromYoutube } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../services/supabase';
@@ -16,19 +16,25 @@ const kata2Hira = (str: string) => {
 };
 
 type FuriganaMode = 'all' | 'firstTime' | 'none';
+type AudioSourceMode = 'file' | 'youtube'; // 🌟 סוג המקור של השיר
 
 export default function SongsPage() {
   const { user, isPro, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const [songTitle, setSongTitle] = useState(''); 
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [lyrics, setLyrics] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [syncData, setSyncData] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(0);
   
+  // 🌟 סטייטים למקור השמע
+  const [audioSource, setAudioSource] = useState<AudioSourceMode>('youtube');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [youtubeThumbnail, setYoutubeThumbnail] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
   const [songId, setSongId] = useState<string | null>(null);
   const [selectedWord, setSelectedWord] = useState<any | null>(null);
   const [activeAudio, setActiveAudio] = useState<'word' | null>(null);
@@ -93,24 +99,64 @@ export default function SongsPage() {
     }
   };
 
+  // 🌟 פונקציה חכמה למשיכת נתונים מיוטיוב כשמדביקים קישור
+  const handleYoutubeUrlChange = async (url: string) => {
+    setYoutubeUrl(url);
+    if (!url) {
+      setYoutubeThumbnail(null);
+      return;
+    }
+
+    // בודק אם זה נראה כמו קישור של יוטיוב
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      try {
+        // שימוש בשירות חינמי ששולף מטא-דאטה מקישורים
+        const res = await fetch(`https://noembed.com/embed?url=${url}`);
+        const data = await res.json();
+        
+        // מעדכן את השם והתמונה אוטומטית!
+        if (data.title) setSongTitle(data.title);
+        if (data.thumbnail_url) setYoutubeThumbnail(data.thumbnail_url);
+      } catch (err) {
+        console.error('Failed to fetch youtube data', err);
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     if (limitReached && !isPro) return;
 
-    if (!songTitle.trim() || !audioFile || !lyrics.trim()) {
-      alert('יש למלא את שם השיר, להעלות קובץ אודיו ולהזין מילים');
+    if (!songTitle.trim() || !lyrics.trim()) {
+      alert('יש למלא את שם השיר ולהזין מילים');
+      return;
+    }
+
+    if (audioSource === 'file' && !audioFile) {
+      alert('יש להעלות קובץ אודיו');
+      return;
+    }
+
+    if (audioSource === 'youtube' && !youtubeUrl.trim()) {
+      alert('יש להזין קישור ליוטיוב');
       return;
     }
 
     setIsLoading(true);
     
     try {
-      const formData = new FormData();
-      formData.append('title', songTitle); 
-      formData.append('audio', audioFile);
-      formData.append('lyrics', lyrics);
-      if (user) formData.append('userId', user.id);
+      let response;
 
-      const response = await processSongWithGemini(formData);
+      // 🌟 ניתוב הבקשה לפונקציה המתאימה ב-API לפי המקור שנבחר
+      if (audioSource === 'youtube') {
+        response = await processSongFromYoutube(youtubeUrl, lyrics, user?.id || 'anonymous', songTitle);
+      } else {
+        const formData = new FormData();
+        formData.append('title', songTitle); 
+        if (audioFile) formData.append('audio', audioFile);
+        formData.append('lyrics', lyrics);
+        if (user) formData.append('userId', user.id);
+        response = await processSongWithGemini(formData);
+      }
       
       setAudioUrl(response.songData.audio_url);
       setSongId(response.songData.id);
@@ -195,7 +241,6 @@ export default function SongsPage() {
           
           {limitReached && <div className="absolute inset-0 bg-gray-50/50 dark:bg-[#0B0F19]/60 z-10 pointer-events-none"></div>}
 
-          {/* 🌟 שדה 1: שם השיר - לוגיקת כיוון דינמית */}
           <div className="relative z-20">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">1. שם השיר</label>
             <div className="relative">
@@ -210,28 +255,74 @@ export default function SongsPage() {
                     ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
                     : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
                 }`}
-                // הפתרון: אם ריק - RTL (עברית). אם יש טקסט - AUTO (יתאים לטקסט).
                 dir={limitReached || !songTitle ? "rtl" : "auto"} 
               />
               {limitReached && <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />}
             </div>
           </div>
 
+          {/* 🌟 אזור בחירת מקור השמע (יוטיוב או קובץ) */}
           <div className="relative z-20">
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">2. בחר קובץ MP3</label>
-            <div className={`relative rounded-xl border ${limitReached ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 opacity-70' : 'border-transparent'}`}>
-              <input 
-                type="file" 
-                accept="audio/*" 
-                onChange={handleFileChange} 
-                disabled={limitReached || isCheckingLimit || authLoading} 
-                className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-400 hover:file:bg-blue-100 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" 
-              />
-              {limitReached && <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />}
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">2. מקור השמע</label>
+              
+              {/* טאבים לבחירת מקור */}
+              <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg" dir="ltr">
+                <button
+                  onClick={() => setAudioSource('file')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-bold transition-all ${audioSource === 'file' ? 'bg-white dark:bg-[#1E293B] shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <FileAudio size={16} /> קובץ MP3
+                </button>
+                <button
+                  onClick={() => setAudioSource('youtube')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-bold transition-all ${audioSource === 'youtube' ? 'bg-white dark:bg-[#1E293B] shadow-sm text-red-600 dark:text-red-400' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <Youtube size={16} /> יוטיוב
+                </button>
+              </div>
+            </div>
+
+            {/* תוכן הטאבים */}
+            <div className={`mt-2 ${limitReached ? 'opacity-70 pointer-events-none' : ''}`}>
+              {audioSource === 'youtube' ? (
+                <div className="relative">
+                  <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 text-red-500 z-10" size={24} />
+                  <input 
+                    type="text" 
+                    value={youtubeUrl}
+                    onChange={(e) => handleYoutubeUrlChange(e.target.value)}
+                    placeholder="הדבק קישור ליוטיוב כאן (לדוגמה: https://youtube.com/watch...)"
+                    className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 p-4 pl-12 outline-none focus:ring-2 focus:ring-red-500 transition-all text-left"
+                    dir="ltr"
+                  />
+                  
+                  {/* הצגת תמונה ממוזערת מיוטיוב אם קיימת */}
+                  {youtubeThumbnail && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                      className="mt-4 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 w-full max-w-sm relative group"
+                    >
+                      <img src={youtubeThumbnail} alt="YouTube Thumbnail" className="w-full h-auto object-cover" />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Youtube className="text-white w-12 h-12" />
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              ) : (
+                <div className="relative rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19]">
+                  <input 
+                    type="file" 
+                    accept="audio/*" 
+                    onChange={handleFileChange} 
+                    className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-3 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/20 dark:file:text-blue-400 hover:file:bg-blue-100 transition-all cursor-pointer" 
+                  />
+                </div>
+              )}
             </div>
           </div>
 
-          {/* 🌟 שדה 3: מילות השיר - לוגיקת כיוון דינמית */}
           <div className="relative z-20">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">3. הדבק את מילות השיר ביפנית</label>
             <div className="relative">
@@ -246,7 +337,6 @@ export default function SongsPage() {
                     ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
                     : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
                 }`}
-                // הפתרון: אם ריק - RTL (עברית). אם יש טקסט - AUTO (יתאים לטקסט).
                 dir={limitReached || !lyrics ? "rtl" : "auto"} 
               />
               {limitReached && <Lock size={24} className="absolute left-4 top-4 text-gray-400" />}
@@ -264,7 +354,7 @@ export default function SongsPage() {
             ) : (
               <button 
                 onClick={handleSubmit} 
-                disabled={isLoading || !audioFile || !lyrics || !songTitle || isCheckingLimit || authLoading} 
+                disabled={isLoading || (audioSource === 'file' && !audioFile) || (audioSource === 'youtube' && !youtubeUrl) || !lyrics || !songTitle || isCheckingLimit || authLoading} 
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all flex justify-center items-center gap-2 shadow-sm"
               >
                 {isLoading ? <><Loader2 className="animate-spin" size={20} /> מנתח ומעלה למסד הנתונים...</> : <><UploadCloud size={20} /> צור שיעור אינטראקטיבי</>}
