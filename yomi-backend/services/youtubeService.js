@@ -8,7 +8,7 @@ const downloadAudioAsMp3Buffer = async (youtubeUrl) => {
     const tempFilePath = path.join(os.tmpdir(), `yt-${Date.now()}.mp3`);
 
     try {
-        console.log(`מתחיל הורדה עם yt-dlp עבור הקישור: ${youtubeUrl}`);
+        console.log(`מתחיל הורדה עם yt-dlp (הסוואה לאנדרואיד) עבור: ${youtubeUrl}`);
         
         await youtubedl(youtubeUrl, {
             extractAudio: true,
@@ -18,7 +18,9 @@ const downloadAudioAsMp3Buffer = async (youtubeUrl) => {
             noWarnings: true,
             noCheckCertificates: true,
             preferFreeFormats: true,
-            noPlaylist: true // 🌟 התיקון הקריטי: מונע הורדת פלייליסטים שלמים ומוריד רק שיר אחד
+            noPlaylist: true,
+            // 🌟 הטריק נגד חסימות הבוטים: מתחזים לאפליקציית אנדרואיד
+            extractorArgs: 'youtube:player_client=android'
         });
 
         console.log('ההורדה הסתיימה, קורא את הקובץ לזיכרון השרת...');
