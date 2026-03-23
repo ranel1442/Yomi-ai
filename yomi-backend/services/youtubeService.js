@@ -1,49 +1,46 @@
 const downloadAudioAsMp3Buffer = async (youtubeUrl) => {
     try {
-        console.log(`מבקש מ-Cobalt API לטפל בהורדה של: ${youtubeUrl}`);
-        
-        // שלב 1: פנייה לשרתים של קובלט שעוקפים את החסימה
-        const response = await fetch('https://api.cobalt.tools/api/json', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            body: JSON.stringify({
-                url: youtubeUrl,
-                isAudioOnly: true, // מבקשים רק אודיו
-                aFormat: 'mp3'     // בפורמט MP3
-            })
-        });
+        // פונקציית עזר להוצאת ה-ID מהקישור (למשל מתוך https://www.youtube.com/watch?v=bhjBqzely2k)
+        const videoIdMatch = youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/|.*embed\/))([^"&?\/\s]{11})/);
+        const videoId = videoIdMatch ? videoIdMatch[1] : null;
 
-        if (!response.ok) {
-            throw new Error(`Cobalt API failed: ${response.status}`);
+        if (!videoId) throw new Error('לא ניתן היה לזהות את מזהה הסרטון (Video ID)');
+
+        console.log(`פונה ל-RapidAPI עבור מזהה סרטון: ${videoId}`);
+
+        // שליחת הבקשה ל-API שמופיע לך במסך
+        const response = await fetch(
+            `https://${process.env.RAPID_API_HOST}/get_mp3_download_link/${videoId}`, 
+            {
+                method: 'GET',
+                headers: {
+                    'x-rapidapi-key': process.env.RAPID_API_KEY,
+                    'x-rapidapi-host': process.env.RAPID_API_HOST
+                }
+            }
+        );
+
+        const result = await response.json();
+
+        // לפי ה-API הזה, הקישור נמצא בדרך כלל תחת השדה 'link'
+        const downloadUrl = result.link || result.url;
+
+        if (!downloadUrl) {
+            console.error('API Error Response:', result);
+            throw new Error('ה-API לא החזיר קישור תקין להורדה');
         }
 
-        const data = await response.json();
-        
-        if (data.status === 'error') {
-            throw new Error(`Cobalt error: ${data.text}`);
-        }
+        console.log('התקבל קישור, מוריד את ה-MP3 לשרת...');
 
-        const downloadUrl = data.url;
-        console.log('קובלט הצליח לעקוף את החסימה! מוריד את קובץ ה-MP3 לזיכרון של השרת...');
-
-        // שלב 2: הורדת קובץ ה-MP3 המוכן ישירות לתוך Buffer
         const audioResponse = await fetch(downloadUrl);
         const arrayBuffer = await audioResponse.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        console.log('ההורדה הושלמה בהצלחה! מעביר את הקובץ להמשך עיבוד...');
-        return buffer;
         
+        return Buffer.from(arrayBuffer);
+
     } catch (error) {
-        console.error('שגיאה בתקשורת מול Cobalt API:', error);
+        console.error('שגיאה בשימוש ב-RapidAPI:', error);
         throw error;
     }
 };
 
-module.exports = {
-    downloadAudioAsMp3Buffer
-};
+module.exports = { downloadAudioAsMp3Buffer };
