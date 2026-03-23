@@ -1,42 +1,45 @@
-const youtubedl = require('youtube-dl-exec');
-const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-
 const downloadAudioAsMp3Buffer = async (youtubeUrl) => {
-    const tempFilePath = path.join(os.tmpdir(), `yt-${Date.now()}.mp3`);
-    const cookiesPath = path.join(__dirname, '../youtube-cookies.txt');
-
     try {
-        console.log(`מתחיל הורדה עם yt-dlp (עוגיות + אנדרואיד) עבור: ${youtubeUrl}`);
+        console.log(`מבקש מ-Cobalt API לטפל בהורדה של: ${youtubeUrl}`);
         
-        await youtubedl(youtubeUrl, {
-            extractAudio: true,
-            audioFormat: 'mp3',
-            format: 'bestaudio/best', // מבקש את האודיו הטוב ביותר
-            output: tempFilePath,
-            ffmpegLocation: ffmpegInstaller.path,
-            noWarnings: true,
-            noCheckCertificates: true,
-            noPlaylist: true,
-            // 🌟 השילוב המנצח: גם התחזות לאנדרואיד וגם עוגיות!
-            extractorArgs: 'youtube:player_client=android',
-            cookies: fs.existsSync(cookiesPath) ? cookiesPath : undefined
+        // שלב 1: פנייה לשרתים של קובלט שעוקפים את החסימה
+        const response = await fetch('https://api.cobalt.tools/api/json', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            body: JSON.stringify({
+                url: youtubeUrl,
+                isAudioOnly: true, // מבקשים רק אודיו
+                aFormat: 'mp3'     // בפורמט MP3
+            })
         });
 
-        console.log('ההורדה הסתיימה, קורא את הקובץ לזיכרון השרת...');
-        const buffer = fs.readFileSync(tempFilePath);
+        if (!response.ok) {
+            throw new Error(`Cobalt API failed: ${response.status}`);
+        }
 
-        fs.unlinkSync(tempFilePath);
+        const data = await response.json();
+        
+        if (data.status === 'error') {
+            throw new Error(`Cobalt error: ${data.text}`);
+        }
 
+        const downloadUrl = data.url;
+        console.log('קובלט הצליח לעקוף את החסימה! מוריד את קובץ ה-MP3 לזיכרון של השרת...');
+
+        // שלב 2: הורדת קובץ ה-MP3 המוכן ישירות לתוך Buffer
+        const audioResponse = await fetch(downloadUrl);
+        const arrayBuffer = await audioResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        console.log('ההורדה הושלמה בהצלחה! מעביר את הקובץ להמשך עיבוד...');
         return buffer;
         
     } catch (error) {
-        console.error('שגיאה ב-yt-dlp:', error);
-        if (fs.existsSync(tempFilePath)) {
-            fs.unlinkSync(tempFilePath);
-        }
+        console.error('שגיאה בתקשורת מול Cobalt API:', error);
         throw error;
     }
 };
