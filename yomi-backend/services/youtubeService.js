@@ -1,4 +1,4 @@
-const ytdl = require('ytdl-core');
+const ytdl = require('@distube/ytdl-core');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 
@@ -8,8 +8,8 @@ ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 const downloadAudioAsMp3Buffer = (youtubeUrl) => {
     return new Promise((resolve, reject) => {
         try {
-            // משיכת זרם האודיו האיכותי ביותר מיוטיוב
-            const stream = ytdl(youtubeUrl, { quality: 'highestaudio' });
+            // משיכת זרם האודיו באמצעות הספרייה המעודכנת
+            const stream = ytdl(youtubeUrl, { filter: 'audioonly' });
             const chunks = [];
 
             // המרה ל-MP3 תוך כדי הזרמה ושמירה בזיכרון (Buffer)
