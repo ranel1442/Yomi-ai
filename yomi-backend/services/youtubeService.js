@@ -9,17 +9,19 @@ const downloadAudioAsMp3Buffer = async (youtubeUrl) => {
     const cookiesPath = path.join(__dirname, '../youtube-cookies.txt');
 
     try {
-        console.log(`מתחיל הורדה עם yt-dlp עבור: ${youtubeUrl}`);
+        console.log(`מתחיל הורדה עם yt-dlp (עוגיות + אנדרואיד) עבור: ${youtubeUrl}`);
         
         await youtubedl(youtubeUrl, {
             extractAudio: true,
             audioFormat: 'mp3',
-            format: 'bestaudio/best', // 🌟 התיקון: בקשה מפורשת לאודיו הטוב ביותר שקיים כרגע
+            format: 'bestaudio/best', // מבקש את האודיו הטוב ביותר
             output: tempFilePath,
             ffmpegLocation: ffmpegInstaller.path,
             noWarnings: true,
             noCheckCertificates: true,
             noPlaylist: true,
+            // 🌟 השילוב המנצח: גם התחזות לאנדרואיד וגם עוגיות!
+            extractorArgs: 'youtube:player_client=android',
             cookies: fs.existsSync(cookiesPath) ? cookiesPath : undefined
         });
 
