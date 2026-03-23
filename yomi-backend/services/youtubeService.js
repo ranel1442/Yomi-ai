@@ -1,38 +1,46 @@
-const ytdl = require('@distube/ytdl-core');
-const ffmpeg = require('fluent-ffmpeg');
+const youtubedl = require('youtube-dl-exec');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
-// הגדרת נתיב למנוע ההמרה
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+const downloadAudioAsMp3Buffer = async (youtubeUrl) => {
+    // יצירת נתיב זמני על שרת הרנדר לשמירת הקובץ במהלך ההמרה
+    const tempFilePath = path.join(os.tmpdir(), `yt-${Date.now()}.mp3`);
 
-const downloadAudioAsMp3Buffer = (youtubeUrl) => {
-    return new Promise((resolve, reject) => {
-        try {
-            // משיכת זרם האודיו באמצעות הספרייה המעודכנת
-            const stream = ytdl(youtubeUrl, { filter: 'audioonly' });
-            const chunks = [];
+    try {
+        console.log('מתחיל הורדה עם yt-dlp (עוקף חסימות)...');
+        
+        // yt-dlp מוריד וממיר ישירות ל-MP3
+        await youtubedl(youtubeUrl, {
+            extractAudio: true,
+            audioFormat: 'mp3',
+            output: tempFilePath,
+            ffmpegLocation: ffmpegInstaller.path, // שימוש ב-FFmpeg שהתקנו בסביבה
+            noWarnings: true,
+            noCallHome: true,
+            noCheckCertificates: true,
+            preferFreeFormats: true
+        });
 
-            // המרה ל-MP3 תוך כדי הזרמה ושמירה בזיכרון (Buffer)
-            ffmpeg(stream)
-                .audioBitrate(128)
-                .toFormat('mp3')
-                .on('error', (err) => {
-                    console.error('Error converting youtube audio:', err);
-                    reject(err);
-                })
-                .on('end', () => {
-                    // ברגע שההמרה מסתיימת, מאחדים את כל החלקים לבאפר אחד
-                    resolve(Buffer.concat(chunks));
-                })
-                .pipe()
-                .on('data', (chunk) => {
-                    chunks.push(chunk);
-                });
+        console.log('ההורדה הסתיימה, קורא את הקובץ לזיכרון השרת...');
+        // קריאת קובץ ה-MP3 המוכן לתוך Buffer (בדיוק מה שהראוט שלך מצפה לקבל)
+        const buffer = fs.readFileSync(tempFilePath);
 
-        } catch (error) {
-            reject(error);
+        // מחיקת הקובץ הזמני מהשרת כדי לא לסתום מקום
+        fs.unlinkSync(tempFilePath);
+
+        return buffer;
+        
+    } catch (error) {
+        console.error('שגיאה ב-yt-dlp:', error);
+        
+        // ניקוי הקובץ הזמני במקרה של שגיאה באמצע
+        if (fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
         }
-    });
+        throw error;
+    }
 };
 
 module.exports = {
