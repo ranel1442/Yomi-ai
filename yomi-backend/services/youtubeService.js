@@ -6,23 +6,20 @@ const os = require('os');
 
 const downloadAudioAsMp3Buffer = async (youtubeUrl) => {
     const tempFilePath = path.join(os.tmpdir(), `yt-${Date.now()}.mp3`);
-    
-    // הגדרת הנתיב לקובץ העוגיות שלנו
     const cookiesPath = path.join(__dirname, '../youtube-cookies.txt');
 
     try {
-        console.log(`מתחיל הורדה עם yt-dlp ושימוש בעוגיות עבור: ${youtubeUrl}`);
+        console.log(`מתחיל הורדה עם yt-dlp עבור: ${youtubeUrl}`);
         
         await youtubedl(youtubeUrl, {
             extractAudio: true,
             audioFormat: 'mp3',
+            format: 'bestaudio/best', // 🌟 התיקון: בקשה מפורשת לאודיו הטוב ביותר שקיים כרגע
             output: tempFilePath,
             ffmpegLocation: ffmpegInstaller.path,
             noWarnings: true,
             noCheckCertificates: true,
-            preferFreeFormats: true,
             noPlaylist: true,
-            // 🌟 הפתרון לחסימת הבוטים: שימוש בעוגיות אמיתיות של דפדפן
             cookies: fs.existsSync(cookiesPath) ? cookiesPath : undefined
         });
 
