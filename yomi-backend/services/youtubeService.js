@@ -5,37 +5,31 @@ const path = require('path');
 const os = require('os');
 
 const downloadAudioAsMp3Buffer = async (youtubeUrl) => {
-    // יצירת נתיב זמני על שרת הרנדר לשמירת הקובץ במהלך ההמרה
     const tempFilePath = path.join(os.tmpdir(), `yt-${Date.now()}.mp3`);
 
     try {
-        console.log('מתחיל הורדה עם yt-dlp (עוקף חסימות)...');
+        console.log(`מתחיל הורדה עם yt-dlp עבור הקישור: ${youtubeUrl}`);
         
-        // yt-dlp מוריד וממיר ישירות ל-MP3
         await youtubedl(youtubeUrl, {
             extractAudio: true,
             audioFormat: 'mp3',
             output: tempFilePath,
-            ffmpegLocation: ffmpegInstaller.path, // שימוש ב-FFmpeg שהתקנו בסביבה
+            ffmpegLocation: ffmpegInstaller.path,
             noWarnings: true,
-            noCallHome: true,
             noCheckCertificates: true,
-            preferFreeFormats: true
+            preferFreeFormats: true,
+            noPlaylist: true // 🌟 התיקון הקריטי: מונע הורדת פלייליסטים שלמים ומוריד רק שיר אחד
         });
 
         console.log('ההורדה הסתיימה, קורא את הקובץ לזיכרון השרת...');
-        // קריאת קובץ ה-MP3 המוכן לתוך Buffer (בדיוק מה שהראוט שלך מצפה לקבל)
         const buffer = fs.readFileSync(tempFilePath);
 
-        // מחיקת הקובץ הזמני מהשרת כדי לא לסתום מקום
         fs.unlinkSync(tempFilePath);
 
         return buffer;
         
     } catch (error) {
         console.error('שגיאה ב-yt-dlp:', error);
-        
-        // ניקוי הקובץ הזמני במקרה של שגיאה באמצע
         if (fs.existsSync(tempFilePath)) {
             fs.unlinkSync(tempFilePath);
         }
