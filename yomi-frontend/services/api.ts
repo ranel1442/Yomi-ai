@@ -197,3 +197,46 @@ export const processSongFromYoutube = async (youtubeUrl: string, lyrics: string,
     throw error;
   }
 };
+
+
+// ==========================================
+// 🌟 פונקציות עבור ספריית הקהילה (PRO)
+// ==========================================
+
+// 1. שליפת כל השירים המשותפים מהקהילה
+export const getCommunitySongs = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/songs/community`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching community songs:', error);
+    throw error;
+  }
+};
+
+// 2. שינוי סטטוס השיתוף של שיר (פרטי <--> ציבורי)
+export const toggleSongShare = async (songId: string, isPublic: boolean, userId: string) => {
+  try {
+    const response = await axios.patch(`${API_URL}/songs/${songId}/share`, { 
+      is_public: isPublic,
+      userId: userId 
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error toggling song share status:', error);
+    throw error;
+  }
+};
+
+// 3. שכפול שיר מספריית הקהילה לספרייה האישית של המשתמש
+export const cloneCommunitySong = async (songId: string, userId: string) => {
+  try {
+    const response = await axios.post(`${API_URL}/songs/${songId}/clone`, { 
+      userId: userId 
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error cloning community song:', error);
+    throw error;
+  }
+};

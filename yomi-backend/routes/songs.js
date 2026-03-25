@@ -287,4 +287,99 @@ router.post('/process-youtube', async (req, res) => {
     }
 });
 
+
+
+
+
+// GET /api/songs/community - קבלת כל השירים מספריית הקהילה
+router.get('/community', async (req, res) => {
+    try {
+        // משיכת כל השירים שהם פומביים. הבאנו גם את ה-ID של היוצר המקורי
+        const { data: publicSongs, error } = await supabase
+            .from('user_songs')
+            .select('*')
+            .eq('is_public', true)
+            .order('created_at', { ascending: false }); // השירים החדשים ביותר למעלה
+
+        if (error) throw error;
+
+        res.status(200).json(publicSongs);
+    } catch (error) {
+        console.error('Error fetching community songs:', error);
+        res.status(500).json({ error: 'שגיאה בטעינת ספריית הקהילה' });
+    }
+});
+
+
+// PATCH /api/songs/:id/share - שינוי סטטוס שיתוף של שיר
+router.patch('/:id/share', async (req, res) => {
+    const songId = req.params.id;
+    const { is_public } = req.body; 
+    const userId = req.body.userId; // מניח שיש לך מידלוור ששומר את פרטי המשתמש המחובר
+
+    try {
+        // חשוב: אנחנו מוודאים שהמשתמש מעדכן רק שיר ששייך לו (eq('user_id', userId))
+        const { data, error } = await supabase
+            .from('user_songs')
+            .update({ is_public: is_public })
+            .eq('id', songId)
+            .eq('user_id', userId)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(200).json({ message: 'סטטוס השיתוף עודכן בהצלחה', song: data });
+    } catch (error) {
+        console.error('Error updating song visibility:', error);
+        res.status(500).json({ error: 'שגיאה בעדכון סטטוס השיר' });
+    }
+});
+
+
+// POST /api/songs/:id/clone - העתקת שיר מהקהילה לספרייה האישית
+router.post('/:id/clone', async (req, res) => {
+    const originalSongId = req.params.id;
+    const newUserId = req.body.userId; // המשתמש שלוחץ "שמור לספרייה שלי"
+
+    try {
+        // שלב א': שליפת השיר המקורי (רק אם הוא פומבי)
+        const { data: originalSong, error: fetchError } = await supabase
+            .from('user_songs')
+            .select('*')
+            .eq('id', originalSongId)
+            .eq('is_public', true)
+            .single();
+
+        if (fetchError || !originalSong) {
+            return res.status(404).json({ error: 'השיר לא נמצא או שאינו פומבי' });
+        }
+
+        // שלב ב': הכנת האובייקט החדש. אנחנו מוחקים את ה-ID המקורי כדי שסופאבייס ייצר אחד חדש
+        const clonedSong = { ...originalSong };
+        delete clonedSong.id;
+        delete clonedSong.created_at;
+
+        // שלב ג': שיוך למשתמש החדש, הסתרת השיר (הוא פרטי שלו כרגע), ושמירת הקרדיט
+        clonedSong.user_id = newUserId;
+        clonedSong.is_public = false; 
+        // אם לשיר המקורי כבר היה יוצר מקורי, נשמור עליו. אחרת, היוצר המקורי הוא מי שיצר את השיר שאנחנו מעתיקים עכשיו
+        clonedSong.original_creator_id = originalSong.original_creator_id || originalSong.user_id;
+
+        // שלב ד': הזרקת השורה החדשה למסד הנתונים!
+        const { data: newSong, error: insertError } = await supabase
+            .from('user_songs')
+            .insert([clonedSong])
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
+
+        res.status(201).json({ message: 'השיר הועתק בהצלחה לספרייה שלך!', song: newSong });
+
+    } catch (error) {
+        console.error('Error cloning song:', error);
+        res.status(500).json({ error: 'שגיאה בהעתקת השיר' });
+    }
+});
 module.exports = router;
