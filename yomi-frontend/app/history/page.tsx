@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { getUserHistory, deleteStory, getUserSongs, deleteSong, getCommunitySongs, toggleSongShare, cloneCommunitySong } from '../../services/api';
 // 🌟 הוספתי אייקון של Search (זכוכית מגדלת)
-import { Book, Loader2, ArrowRight, Ghost, Trash2, Music, Globe, Lock, Crown, Download, Search } from 'lucide-react';
+import { Book, Loader2, ArrowRight, Ghost, Trash2, Music, Globe, Lock, Crown, Download, Search,Check } from 'lucide-react';
 import Link from 'next/link';
 import Reader from '../../components/Reader';
 import SongViewer from '../../components/SongViewer'; 
@@ -263,7 +263,7 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* --- אזור הקהילה (רק למשתמשי פרו) --- */}
+          {/* --- אזור הקהילה (רק למשתמשי פרו) --- */}
         {activeTab === 'community' && isProUser && (
            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/10 dark:to-indigo-900/10 border border-purple-100 dark:border-purple-800/30 rounded-2xl p-6 mb-8 flex items-center gap-4">
@@ -298,15 +298,19 @@ export default function HistoryPage() {
                  {communitySongs
                   .filter(song => {
                       const displayTitle = song.title || song.lyrics_data?.[0]?.lineText || '';
-                      //case-insensitive
                       return displayTitle.toLowerCase().includes(searchTerm.toLowerCase());
                   })
                   .map((song) => {
                    const displayTitle = song.title || song.lyrics_data?.[0]?.lineText || 'שיר ללא שם';
                    const isMyOwnSong = song.user_id === user.id;
 
+                   // 🌟 הלוגיקה למניעת כפילויות: בודקים אם שיר עם אותה כותרת כבר קיים ברשימה שלי
+                   const isAlreadySaved = songs.some(mySong => {
+                       const mySongTitle = mySong.title || mySong.lyrics_data?.[0]?.lineText || 'שיר ללא שם';
+                       return mySongTitle === displayTitle;
+                   });
+
                    return (
-                     // 🌟 הפכתי את כל הכרטיסייה ללחיצה (cursor-pointer) עם setSelectedSong
                      <div 
                         key={song.id} 
                         onClick={() => setSelectedSong(song)}
@@ -323,10 +327,14 @@ export default function HistoryPage() {
                        </div>
                        
                        <div className="flex justify-center mt-auto pt-4 border-t border-gray-50 dark:border-gray-800">
-                           {/* 🌟 עיצוב מחדש של הכפתורים - כהה ומתאים לעיצוב */}
+                           {/* 🌟 עץ החלטות לכפתורים: שלי / כבר שמור / חדש */}
                            {isMyOwnSong ? (
                              <button disabled className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-100 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 font-medium rounded-xl border border-gray-200 dark:border-gray-700/50 cursor-not-allowed">
                                <Globe size={16} /> שותף על ידך
+                             </button>
+                           ) : isAlreadySaved ? (
+                             <button disabled className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 font-medium rounded-xl border border-green-200 dark:border-green-800/40 cursor-not-allowed">
+                               <Check size={16} /> קיים בספרייה
                              </button>
                            ) : (
                              <button 
