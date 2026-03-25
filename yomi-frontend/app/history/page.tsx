@@ -261,7 +261,7 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* --- אזור הקהילה (רק למשתמשי פרו) --- */}
+          {/* --- אזור הקהילה (רק למשתמשי פרו) --- */}
         {activeTab === 'community' && isProUser && (
            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/10 dark:to-indigo-900/10 border border-purple-100 dark:border-purple-800/30 rounded-2xl p-6 mb-8 flex items-center gap-4">
@@ -282,7 +282,9 @@ export default function HistoryPage() {
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                  {communitySongs.map((song) => {
                    const displayTitle = song.title || song.lyrics_data?.[0]?.lineText || 'שיר ללא שם';
-                   if(song.user_id === user.id) return null; 
+                   
+                   // בודקים אם השיר הזה נוצר על ידי המשתמש המחובר כרגע
+                   const isMyOwnSong = song.user_id === user.id;
 
                    return (
                      <div key={song.id} className="bg-white dark:bg-[#111827] p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-md transition-all flex flex-col justify-between h-56 relative group">
@@ -297,13 +299,19 @@ export default function HistoryPage() {
                        </div>
                        
                        <div className="flex justify-center mt-auto pt-4 border-t border-gray-50 dark:border-gray-800">
-                           {/* 🌟 שימוש נכון בפונקציה: קורא לפונקציית הלחיצה המקומית */}
-                           <button 
-                             onClick={(e) => handleCloneCommunitySong(e, song.id)}
-                             className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 hover:bg-purple-50 text-gray-700 hover:text-purple-700 font-medium rounded-xl transition-colors border border-gray-200 hover:border-purple-200"
-                           >
-                               <Download size={16} /> הוסף לספרייה שלי
-                           </button>
+                           {/* 🌟 מציגים כפתור מושבת למשתמש שיצר את השיר, וכפתור הורדה לשאר */}
+                           {isMyOwnSong ? (
+                             <button disabled className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 dark:bg-gray-800 text-gray-400 font-medium rounded-xl border border-gray-200 dark:border-gray-700 cursor-not-allowed">
+                               <Globe size={16} /> שותף על ידך
+                             </button>
+                           ) : (
+                             <button 
+                               onClick={(e) => handleCloneCommunitySong(e, song.id)}
+                               className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 hover:bg-purple-50 text-gray-700 hover:text-purple-700 font-medium rounded-xl transition-colors border border-gray-200 hover:border-purple-200"
+                             >
+                                 <Download size={16} /> הוסף לספרייה שלי
+                             </button>
+                           )}
                        </div>
                      </div>
                    );
@@ -312,7 +320,6 @@ export default function HistoryPage() {
              )}
            </div>
         )}
-
       </div>
     </main>
   );
