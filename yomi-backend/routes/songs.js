@@ -171,8 +171,12 @@ router.delete('/:songId', async (req, res) => {
 // ==========================================
 router.post('/process-youtube', async (req, res) => {
     try {
-        const { youtubeUrl, lyrics, userId, title } = req.body;
+        const { youtubeUrl, lyrics, userId, userEmail, title } = req.body;
         const songTitle = title || 'שיר מיוטיוב ללא שם';
+
+        // 🌟 רשימת המיילים של המנהלים שפטורים מהגבלות (החלף למייל האמיתי שלך!)
+        const ADMIN_EMAILS = ['lenar121249@gamil.com', 'lenar1@example.com'];
+        const isAdmin = ADMIN_EMAILS.includes(userEmail);
 
         // 🔒 הגנה בסיסית
         if (!youtubeUrl || !lyrics || !userId || userId === 'anonymous') {
@@ -188,44 +192,48 @@ router.post('/process-youtube', async (req, res) => {
 
         const isPro = profile?.is_pro === true;
 
-        // 🔒 שלב ב': הגבלה למשתמש חינמי
-        if (!isPro) {
-            const { count, error: countError } = await supabase
-                .from('user_songs')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', userId);
+        // 🌟 אם המשתמש הוא *לא* מנהל, אנחנו מפעילים עליו את ההגבלות
+        if (!isAdmin) {
+            
+            // 🔒 שלב ב': הגבלה למשתמש חינמי (1 סך הכל)
+            if (!isPro) {
+                const { count, error: countError } = await supabase
+                    .from('user_songs')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', userId);
 
-            if (countError) throw countError;
+                if (countError) throw countError;
 
-            if (count >= 1) {
-                console.log(`[Security] Blocked free user ${userId} from generating more than 1 song total via YouTube`);
-                return res.status(403).json({ 
-                    error: 'משתמשים במסלול החינמי זכאים ליצירת שיר אחד בלבד. שדרג ל-PRO כדי ליצור שירים נוספים!',
-                    requiresPro: true 
-                });
+                if (count >= 1) {
+                    console.log(`[Security] Blocked free user ${userId} from generating more than 1 song total via YouTube`);
+                    return res.status(403).json({ 
+                        error: 'משתמשים במסלול החינמי זכאים ליצירת שיר אחד בלבד. שדרג ל-PRO כדי ליצור שירים נוספים!',
+                        requiresPro: true 
+                    });
+                }
             }
-        }
 
-        /*
-        // 🔒 אופציונלי לעתיד: הגבלת משתמשי PRO (למשל, לשיר 1 ביום)
-        if (isPro) {
-            const startOfDay = new Date();
-            startOfDay.setUTCHours(0, 0, 0, 0);
+            // 🔒 שלב ג': הגבלת משתמשי PRO (ל-1 ביום)
+            if (isPro) {
+                const startOfDay = new Date();
+                startOfDay.setUTCHours(0, 0, 0, 0); // מאפס את השעה לחצות של תחילת היום
 
-            const { count, error: proCountError } = await supabase
-                .from('user_songs')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', userId)
-                .gte('created_at', startOfDay.toISOString());
+                const { count, error: proCountError } = await supabase
+                    .from('user_songs')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', userId)
+                    .gte('created_at', startOfDay.toISOString()); // בודק כמה שירים נוצרו מאז תחילת היום
 
-            if (proCountError) throw proCountError;
+                if (proCountError) throw proCountError;
 
-            if (count >= 1) {
-                console.log(`[Security] Blocked PRO user ${userId} from generating more than 1 song today`);
-                return res.status(429).json({ error: 'הגעת למכסת השירים היומית למנויי PRO.' });
+                if (count >= 1) {
+                    console.log(`[Security] Blocked PRO user ${userId} from generating more than 1 song today`);
+                    return res.status(429).json({ error: 'הגעת למכסת היצירות היומית למנויי PRO (שיר 1 ביום). מכסתך תתחדש מחר!' });
+                }
             }
+        } else {
+            console.log(`[Security] Admin user ${userEmail} detected. Bypassing limits.`);
         }
-        */
 
         console.log('מוריד וממיר שיר מיוטיוב ל-Buffer...');
         const audioBuffer = await youtubeService.downloadAudioAsMp3Buffer(youtubeUrl);

@@ -183,12 +183,13 @@ export const deleteSong = async (songId: string) => {
 };
 
 // פונקציה חדשה לעיבוד שיר ישירות מקישור ליוטיוב
-export const processSongFromYoutube = async (youtubeUrl: string, lyrics: string, userId: string, title: string) => {
+export const processSongFromYoutube = async (youtubeUrl: string, lyrics: string, userId: string, userEmail: string, title: string) => {
   try {
     const response = await axios.post(`${API_URL}/songs/process-youtube`, {
       youtubeUrl,
       lyrics,
       userId,
+      userEmail, // 🌟 שולחים את המייל לבאקנד
       title
     });
     return response.data;

@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Music, UploadCloud, Loader2, Play, Bookmark, X, Crown, Eye, Brain, EyeOff, Lock, Youtube, FileAudio } from 'lucide-react';
+// 🌟 הוספתי את האייקון Globe (כדור הארץ) בשביל הודעת קהילת הפרו
+import { Music, UploadCloud, Loader2, Play, Bookmark, X, Crown, Eye, Brain, EyeOff, Lock, Youtube, FileAudio, Globe } from 'lucide-react';
 import { processSongWithGemini, generateAudio, saveFlashcard, processSongFromYoutube } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { useRouter } from 'next/navigation';
@@ -16,7 +17,7 @@ const kata2Hira = (str: string) => {
 };
 
 type FuriganaMode = 'all' | 'firstTime' | 'none';
-type AudioSourceMode = 'file' | 'youtube'; // 🌟 סוג המקור של השיר
+type AudioSourceMode = 'file' | 'youtube'; 
 
 export default function SongsPage() {
   const { user, isPro, loading: authLoading } = useAuth();
@@ -28,7 +29,6 @@ export default function SongsPage() {
   const [syncData, setSyncData] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(0);
   
-  // 🌟 סטייטים למקור השמע
   const [audioSource, setAudioSource] = useState<AudioSourceMode>('youtube');
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -43,10 +43,16 @@ export default function SongsPage() {
   const [showProModal, setShowProModal] = useState(false);
   const [furiganaMode, setFuriganaMode] = useState<FuriganaMode>('all');
   
-  const [limitReached, setLimitReached] = useState(false);
+  // 🌟 הפרדתי את ההגבלות ל-2 סטייטים שונים (לחינמי ולפרו)
+  const [freeLimitReached, setFreeLimitReached] = useState(false);
+  const [proYoutubeLimitReached, setProYoutubeLimitReached] = useState(false);
   const [isCheckingLimit, setIsCheckingLimit] = useState(true);
 
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // 🌟 הגדרת מנהלי המערכת (החלף למייל האמיתי שלך!)
+  const ADMIN_EMAILS = ['ranel@example.com'];
+  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email);
 
   useEffect(() => {
     if (authLoading) return;
@@ -57,22 +63,40 @@ export default function SongsPage() {
         return;
       }
       
-      if (isPro) {
-        setLimitReached(false);
+      // אם זה אתה - המערכת עוצרת את הבדיקה ופותחת הכל!
+      if (isAdmin) {
+        setFreeLimitReached(false);
+        setProYoutubeLimitReached(false);
         setIsCheckingLimit(false);
         return;
       }
 
       try {
-        const { count, error } = await supabase
-          .from('user_songs')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
+        if (!isPro) {
+          // בדיקה למשתמש חינמי (סה"כ שירים)
+          const { count, error } = await supabase
+            .from('user_songs')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
 
-        if (!error && count && count >= 1) {
-          setLimitReached(true);
+          if (!error && count && count >= 1) {
+            setFreeLimitReached(true);
+          }
         } else {
-          setLimitReached(false);
+          // 🌟 בדיקה למשתמש PRO: האם ייצר שיר יוטיוב היום?
+          const startOfDay = new Date();
+          startOfDay.setUTCHours(0, 0, 0, 0);
+
+          const { count, error } = await supabase
+            .from('user_songs')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .gte('created_at', startOfDay.toISOString())
+            .ilike('audio_url', '%youtube-song%'); // מחפש רק שירים שנוצרו דרך יוטיוב
+
+          if (!error && count && count >= 1) {
+            setProYoutubeLimitReached(true);
+          }
         }
       } catch (err) {
         console.error('Error checking limit:', err);
@@ -82,7 +106,7 @@ export default function SongsPage() {
     };
 
     checkUserLimit();
-  }, [user, isPro, authLoading]);
+  }, [user, isPro, authLoading, isAdmin]);
 
   useEffect(() => {
     return () => {
@@ -99,7 +123,6 @@ export default function SongsPage() {
     }
   };
 
-  // 🌟 פונקציה חכמה למשיכת נתונים מיוטיוב כשמדביקים קישור
   const handleYoutubeUrlChange = async (url: string) => {
     setYoutubeUrl(url);
     if (!url) {
@@ -107,14 +130,10 @@ export default function SongsPage() {
       return;
     }
 
-    // בודק אם זה נראה כמו קישור של יוטיוב
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       try {
-        // שימוש בשירות חינמי ששולף מטא-דאטה מקישורים
         const res = await fetch(`https://noembed.com/embed?url=${url}`);
         const data = await res.json();
-        
-        // מעדכן את השם והתמונה אוטומטית!
         if (data.title) setSongTitle(data.title);
         if (data.thumbnail_url) setYoutubeThumbnail(data.thumbnail_url);
       } catch (err) {
@@ -124,7 +143,11 @@ export default function SongsPage() {
   };
 
   const handleSubmit = async () => {
-    if (limitReached && !isPro) return;
+    // מניעת לחיצה אם המשתמש חסום באותו טאב
+    if (!isAdmin) {
+       if (!isPro && freeLimitReached) return;
+       if (isPro && audioSource === 'youtube' && proYoutubeLimitReached) return;
+    }
 
     if (!songTitle.trim() || !lyrics.trim()) {
       alert('יש למלא את שם השיר ולהזין מילים');
@@ -146,9 +169,9 @@ export default function SongsPage() {
     try {
       let response;
 
-      // 🌟 ניתוב הבקשה לפונקציה המתאימה ב-API לפי המקור שנבחר
       if (audioSource === 'youtube') {
-        response = await processSongFromYoutube(youtubeUrl, lyrics, user?.id || 'anonymous', songTitle);
+        // שולחים גם את המייל כדי שהבאקנד ידע אם זה מנהל
+        response = await processSongFromYoutube(youtubeUrl, lyrics, user?.id || 'anonymous', user?.email || '', songTitle);
       } else {
         const formData = new FormData();
         formData.append('title', songTitle); 
@@ -174,13 +197,14 @@ export default function SongsPage() {
       }));
 
       setSyncData(enrichedSyncData); 
-      setLimitReached(false); 
       
     } catch (error: any) {
       console.error(error);
       if (error.response && error.response.status === 403) {
-        setLimitReached(true);
+        setFreeLimitReached(true);
         setShowProModal(true);
+      } else if (error.response && error.response.status === 429) {
+        setProYoutubeLimitReached(true);
       } else {
         alert('אירעה שגיאה בעיבוד השיר. ודא שהשרת פועל.');
       }
@@ -229,6 +253,9 @@ export default function SongsPage() {
     }
   };
 
+  // 🌟 משתנה עזר שמחליט האם לנעול את השדות כרגע בהתאם לטאב הפעיל ולמגבלות
+  const isCurrentSourceLocked = !isAdmin && ((!isPro && freeLimitReached) || (isPro && audioSource === 'youtube' && proYoutubeLimitReached));
+
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 w-full relative min-h-screen">
       <h1 className="text-3xl font-bold mb-8 flex items-center gap-3 text-gray-800 dark:text-white">
@@ -239,34 +266,46 @@ export default function SongsPage() {
       {!syncData && (
         <div className="bg-white dark:bg-[#1E293B] rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col gap-6 relative overflow-hidden">
           
-          {limitReached && <div className="absolute inset-0 bg-gray-50/50 dark:bg-[#0B0F19]/60 z-10 pointer-events-none"></div>}
+          {/* שכבת הנעילה המעודכנת */}
+          {isCurrentSourceLocked && <div className="absolute inset-0 bg-gray-50/40 dark:bg-[#0B0F19]/40 z-10 pointer-events-none"></div>}
+
+          {/* 🌟 הודעת הרגעה יפה למשתמשי PRO שהגיעו למגבלת יוטיוב */}
+          {isPro && audioSource === 'youtube' && proYoutubeLimitReached && !isAdmin && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative z-20 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/10 dark:to-indigo-900/10 border border-purple-200 dark:border-purple-800/30 rounded-2xl p-6 mb-2 text-center shadow-sm">
+              <Crown className="text-purple-500 mx-auto mb-3" size={36} />
+              <h3 className="text-xl font-bold text-purple-900 dark:text-purple-300 mb-2">מכסת היוטיוב היומית נוצלה</h3>
+              <p className="text-purple-700 dark:text-purple-400 font-medium leading-relaxed">
+                אל דאגה! מחר המכסה תתחדש.<br/>
+                בינתיים, אתה עדיין יכול לייצר שירים ללא הגבלה דרך <strong className="text-purple-900 dark:text-purple-300">קובץ MP3</strong>,<br/>
+                או להוסיף שירים מדהימים מתוך <strong className="text-purple-900 dark:text-purple-300 cursor-pointer hover:underline" onClick={() => router.push('/history')}>ספריית קהילת ה-PRO</strong> שלנו!
+              </p>
+            </motion.div>
+          )}
 
           <div className="relative z-20">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">1. שם השיר</label>
             <div className="relative">
               <input 
                 type="text" 
-                value={limitReached ? '' : songTitle}
+                value={isCurrentSourceLocked ? '' : songTitle}
                 onChange={(e) => setSongTitle(e.target.value)}
-                disabled={limitReached || isCheckingLimit || authLoading}
+                disabled={isCurrentSourceLocked || isCheckingLimit || authLoading}
                 placeholder={isCheckingLimit || authLoading ? "בודק הרשאות..." : "לדוגמה: יום בהיר אחד..."}
                 className={`w-full rounded-xl border p-4 outline-none transition-all ${
-                  limitReached 
+                  isCurrentSourceLocked 
                     ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
                     : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
                 }`}
-                dir={limitReached || !songTitle ? "rtl" : "auto"} 
+                dir={isCurrentSourceLocked || !songTitle ? "rtl" : "auto"} 
               />
-              {limitReached && <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />}
+              {isCurrentSourceLocked && <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />}
             </div>
           </div>
 
-          {/* 🌟 אזור בחירת מקור השמע (יוטיוב או קובץ) */}
           <div className="relative z-20">
             <div className="flex justify-between items-center mb-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">2. מקור השמע</label>
               
-              {/* טאבים לבחירת מקור */}
               <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg" dir="ltr">
                 <button
                   onClick={() => setAudioSource('file')}
@@ -283,8 +322,7 @@ export default function SongsPage() {
               </div>
             </div>
 
-            {/* תוכן הטאבים */}
-            <div className={`mt-2 ${limitReached ? 'opacity-70 pointer-events-none' : ''}`}>
+            <div className={`mt-2 ${isCurrentSourceLocked ? 'opacity-70 pointer-events-none' : ''}`}>
               {audioSource === 'youtube' ? (
                 <div className="relative">
                   <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 text-red-500 z-10" size={24} />
@@ -297,7 +335,6 @@ export default function SongsPage() {
                     dir="ltr"
                   />
                   
-                  {/* הצגת תמונה ממוזערת מיוטיוב אם קיימת */}
                   {youtubeThumbnail && (
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -328,23 +365,23 @@ export default function SongsPage() {
             <div className="relative">
               <textarea 
                 rows={8} 
-                value={limitReached ? '' : lyrics} 
+                value={isCurrentSourceLocked ? '' : lyrics} 
                 onChange={(e) => setLyrics(e.target.value)} 
-                disabled={limitReached || isCheckingLimit || authLoading}
-                placeholder={isCheckingLimit || authLoading ? "בודק הרשאות..." : limitReached ? "הגעת למגבלת השירים החינמית..." : "הדבק כאן את הטקסט..."} 
+                disabled={isCurrentSourceLocked || isCheckingLimit || authLoading}
+                placeholder={isCheckingLimit || authLoading ? "בודק הרשאות..." : (!isPro && freeLimitReached) ? "הגעת למגבלת השירים החינמית..." : (isPro && proYoutubeLimitReached && audioSource === 'youtube') ? "מכסת היוטיוב היומית נוצלה..." : "הדבק כאן את הטקסט..."} 
                 className={`w-full rounded-xl border p-4 outline-none resize-none transition-all ${
-                  limitReached 
+                  isCurrentSourceLocked 
                     ? 'border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed placeholder-gray-400' 
                     : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500'
                 }`}
-                dir={limitReached || !lyrics ? "rtl" : "auto"} 
+                dir={isCurrentSourceLocked || !lyrics ? "rtl" : "auto"} 
               />
-              {limitReached && <Lock size={24} className="absolute left-4 top-4 text-gray-400" />}
+              {isCurrentSourceLocked && <Lock size={24} className="absolute left-4 top-4 text-gray-400" />}
             </div>
           </div>
           
           <div className="relative z-20">
-            {limitReached ? (
+            {!isPro && freeLimitReached && !isAdmin ? (
               <button 
                 onClick={() => router.push('/pricing')}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-md flex justify-center items-center gap-2"
@@ -354,7 +391,7 @@ export default function SongsPage() {
             ) : (
               <button 
                 onClick={handleSubmit} 
-                disabled={isLoading || (audioSource === 'file' && !audioFile) || (audioSource === 'youtube' && !youtubeUrl) || !lyrics || !songTitle || isCheckingLimit || authLoading} 
+                disabled={isCurrentSourceLocked || isLoading || (audioSource === 'file' && !audioFile) || (audioSource === 'youtube' && !youtubeUrl) || !lyrics || !songTitle || isCheckingLimit || authLoading} 
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all flex justify-center items-center gap-2 shadow-sm"
               >
                 {isLoading ? <><Loader2 className="animate-spin" size={20} /> מנתח ומעלה למסד הנתונים...</> : <><UploadCloud size={20} /> צור שיעור אינטראקטיבי</>}
