@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { getUserHistory, deleteStory, getUserSongs, deleteSong, getCommunitySongs, toggleSongShare, cloneCommunitySong } from '../../services/api';
-import { Book, Loader2, ArrowRight, Ghost, Trash2, Music, Globe, Lock, Crown, Download } from 'lucide-react';
+// 🌟 הוספתי אייקון של Search (זכוכית מגדלת)
+import { Book, Loader2, ArrowRight, Ghost, Trash2, Music, Globe, Lock, Crown, Download, Search } from 'lucide-react';
 import Link from 'next/link';
 import Reader from '../../components/Reader';
 import SongViewer from '../../components/SongViewer'; 
@@ -22,6 +23,9 @@ export default function HistoryPage() {
   const [songs, setSongs] = useState<any[]>([]);
   const [communitySongs, setCommunitySongs] = useState<any[]>([]); 
   const [isLoading, setIsLoading] = useState(true);
+  
+  // 🌟 סטייט חדש עבור מילת החיפוש
+  const [searchTerm, setSearchTerm] = useState('');
   
   // פריטים נבחרים
   const [selectedStory, setSelectedStory] = useState<any | null>(null);
@@ -82,7 +86,7 @@ export default function HistoryPage() {
     }
   };
 
-  // 🌟 2. פונקציית עדכון מצב השיתוף (מחוברת ל-api.ts)
+  // פונקציית עדכון מצב השיתוף (מחוברת ל-api.ts)
   const toggleSongVisibility = async (e: React.MouseEvent, songId: string, currentIsPublic: boolean) => {
       e.stopPropagation();
       try {
@@ -96,14 +100,12 @@ export default function HistoryPage() {
       }
   };
 
-  // 🌟 3. פונקציית העתקת השיר (שינינו לה את השם כדי שלא תתנגש עם הייבוא, ומחוברת ל-api.ts)
+  // פונקציית העתקת השיר (מחוברת ל-api.ts)
   const handleCloneCommunitySong = async (e: React.MouseEvent, songId: string) => {
       e.stopPropagation();
       try {
-          // קריאה מסודרת לפונקציה מ-api.ts
           const newSongData = await cloneCommunitySong(songId, user.id);
           
-          // מוסיפים את השיר החדש לרשימת השירים של המשתמש
           setSongs(prev => [newSongData.song, ...prev]);
           alert('השיר הועתק בהצלחה לספרייה שלך!');
           setActiveTab('songs'); // מעבר אוטומטי לטאב השירים
@@ -215,7 +217,7 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* --- אזור השירים (כפתורי שיתוף קיימים פה) --- */}
+        {/* --- אזור השירים --- */}
         {activeTab === 'songs' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
             {songs.length === 0 ? (
@@ -261,7 +263,7 @@ export default function HistoryPage() {
           </div>
         )}
 
-          {/* --- אזור הקהילה (רק למשתמשי פרו) --- */}
+        {/* --- אזור הקהילה (רק למשתמשי פרו) --- */}
         {activeTab === 'community' && isProUser && (
            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/10 dark:to-indigo-900/10 border border-purple-100 dark:border-purple-800/30 rounded-2xl p-6 mb-8 flex items-center gap-4">
@@ -274,40 +276,62 @@ export default function HistoryPage() {
                 </div>
              </div>
 
+             {/* 🌟 שורת החיפוש החדשה */}
+             <div className="relative mb-8 max-w-xl">
+                 <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
+                 <input 
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="חפש שיר בקהילה לפי כותרת..."
+                    className="w-full pl-6 pr-12 py-3.5 bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-gray-700 rounded-2xl shadow-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-800 focus:border-purple-300 dark:focus:border-purple-700 transition-all text-lg"
+                 />
+             </div>
+
              {communitySongs.length === 0 ? (
-                 <div className="text-center bg-white p-16 rounded-3xl shadow-sm border border-gray-100">
-                     <h2 className="text-xl text-gray-600 mb-4">עדיין אין שירים בקהילה. תהיה הראשון לשתף!</h2>
+                 <div className="text-center bg-white dark:bg-[#111827] p-16 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800">
+                     <h2 className="text-2xl text-gray-600 dark:text-gray-400 mb-4">עדיין אין שירים בקהילה. תהיה הראשון לשתף!</h2>
                  </div>
              ) : (
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {communitySongs.map((song) => {
+                 {/* 🌟 החלת לוגיקת החיפוש */}
+                 {communitySongs
+                  .filter(song => {
+                      const displayTitle = song.title || song.lyrics_data?.[0]?.lineText || '';
+                      //case-insensitive
+                      return displayTitle.toLowerCase().includes(searchTerm.toLowerCase());
+                  })
+                  .map((song) => {
                    const displayTitle = song.title || song.lyrics_data?.[0]?.lineText || 'שיר ללא שם';
-                   
-                   // בודקים אם השיר הזה נוצר על ידי המשתמש המחובר כרגע
                    const isMyOwnSong = song.user_id === user.id;
 
                    return (
-                     <div key={song.id} className="bg-white dark:bg-[#111827] p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-md transition-all flex flex-col justify-between h-56 relative group">
+                     // 🌟 הפכתי את כל הכרטיסייה ללחיצה (cursor-pointer) עם setSelectedSong
+                     <div 
+                        key={song.id} 
+                        onClick={() => setSelectedSong(song)}
+                        className="bg-white dark:bg-[#111827] p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-md transition-all flex flex-col justify-between h-56 relative group cursor-pointer"
+                     >
                        
                        <div className="flex flex-col h-full items-center justify-center text-center px-4 pt-2">
-                         <div className="bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full p-3 mb-4 shadow-sm">
+                         <div className="bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full p-3 mb-4 shadow-sm group-hover:scale-110 transition-transform">
                             <Music size={24} className="text-white" />
                          </div>
-                         <h3 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-2 leading-snug" dir="auto">
+                         <h3 className="text-lg font-bold text-gray-900 dark:text-white line-clamp-2 leading-snug pl-2" dir="auto">
                            {displayTitle}
                          </h3>
                        </div>
                        
                        <div className="flex justify-center mt-auto pt-4 border-t border-gray-50 dark:border-gray-800">
-                           {/* 🌟 מציגים כפתור מושבת למשתמש שיצר את השיר, וכפתור הורדה לשאר */}
+                           {/* 🌟 עיצוב מחדש של הכפתורים - כהה ומתאים לעיצוב */}
                            {isMyOwnSong ? (
-                             <button disabled className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 dark:bg-gray-800 text-gray-400 font-medium rounded-xl border border-gray-200 dark:border-gray-700 cursor-not-allowed">
+                             <button disabled className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-100 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 font-medium rounded-xl border border-gray-200 dark:border-gray-700/50 cursor-not-allowed">
                                <Globe size={16} /> שותף על ידך
                              </button>
                            ) : (
                              <button 
                                onClick={(e) => handleCloneCommunitySong(e, song.id)}
-                               className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 hover:bg-purple-50 text-gray-700 hover:text-purple-700 font-medium rounded-xl transition-colors border border-gray-200 hover:border-purple-200"
+                               className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-900 dark:bg-[#1E293B] hover:bg-purple-700 dark:hover:bg-purple-900/40 text-white dark:text-purple-300 font-bold rounded-xl transition-colors border border-gray-700 dark:border-gray-600 hover:border-purple-600 dark:hover:border-purple-700 shadow-sm"
                              >
                                  <Download size={16} /> הוסף לספרייה שלי
                              </button>
@@ -316,10 +340,24 @@ export default function HistoryPage() {
                      </div>
                    );
                  })}
+                 
+                 {/* 🌟 הצגת הודעה אם החיפוש לא הניב תוצאות */}
+                 {communitySongs.filter(song => {
+                      const displayTitle = song.title || song.lyrics_data?.[0]?.lineText || '';
+                      return displayTitle.toLowerCase().includes(searchTerm.toLowerCase());
+                  }).length === 0 && searchTerm && (
+                    <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center bg-white dark:bg-[#111827] p-12 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-4">
+                        <Ghost size={48} className="text-gray-300 dark:text-gray-700 mb-4 mx-auto" />
+                        <h3 className="text-xl text-gray-700 dark:text-gray-300 mb-2">לא נמצאו שירים בקהילה התואמים את החיפוש</h3>
+                        <p className="text-gray-500 dark:text-gray-500">נסה מילת חיפוש אחרת או אפס את החיפוש.</p>
+                        <button onClick={() => setSearchTerm('')} className="mt-4 text-purple-600 dark:text-purple-400 font-bold hover:underline">נקה חיפוש</button>
+                    </div>
+                  )}
                </div>
              )}
            </div>
         )}
+
       </div>
     </main>
   );
