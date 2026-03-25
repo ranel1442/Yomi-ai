@@ -5,22 +5,20 @@ require('dotenv').config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // 🌟 פונקציית עזר חכמה: מנגנון ניסיון חוזר אוטומטי (Retry Mechanism)
-// אם גוגל מחזירה 503 (עומס), הפונקציה תחכה קצת ותנסה שוב בעצמה במקום להקריס את השרת
-async function executeWithRetry(apiCall, maxRetries = 3) {
+// 🌟 פונקציית עזר משודרגת: המתנה ארוכה יותר ועמידה יותר בפני עומסי שרת
+async function executeWithRetry(apiCall, maxRetries = 5) { // העלינו ל-5 ניסיונות
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      return await apiCall(); // מנסה להפעיל את הפנייה לגוגל
+      return await apiCall();
     } catch (error) {
-      // בודקים אם מדובר בשגיאת עומס 503
       const isOverloaded = error.status === 503 || (error.message && error.message.includes('503'));
       
       if (isOverloaded && attempt < maxRetries) {
-        // השהיה הולכת וגדלה (Exponential Backoff): 2 שניות, 4 שניות...
-        const waitTime = attempt * 2000; 
-        console.warn(`[Gemini API] עומס בשרתים (שגיאה 503). ניסיון ${attempt} מתוך ${maxRetries} נכשל. ממתין ${waitTime/1000} שניות ומנסה שוב...`);
+        // השהיה הולכת וגדלה באופן אגרסיבי יותר: 5 שניות, 10 שניות, 15 שניות...
+        const waitTime = attempt * 5000; 
+        console.warn(`[Gemini API] עומס בשרתים (שגיאה 503). ניסיון ${attempt} נכשל. ממתין ${waitTime/1000} שניות ומנסה שוב...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       } else {
-        // אם זו לא שגיאת 503, או שנגמרו לנו הניסיונות - זורקים את השגיאה החוצה
         throw error;
       }
     }
