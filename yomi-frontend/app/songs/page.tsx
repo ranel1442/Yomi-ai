@@ -51,7 +51,7 @@ export default function SongsPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // 🌟 הגדרת מנהלי המערכת (החלף למייל האמיתי שלך!)
-  const ADMIN_EMAILS = ['ranel@example.com'];
+  const ADMIN_EMAILS = ['lenar121249@gmail.com'];
   const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email);
 
   useEffect(() => {
