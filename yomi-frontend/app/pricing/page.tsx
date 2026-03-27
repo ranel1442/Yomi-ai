@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Check, X, Crown, Zap, Loader2, ArrowRight, Settings2 } from 'lucide-react';
+import { Check, X, Crown, Zap, Loader2, ArrowRight, Settings2, Globe, Music, BookOpen } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -100,7 +100,7 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           
           {/* ========== כרטיס חינמי ========== */}
           <div className="bg-white dark:bg-[#111827] rounded-[2.5rem] p-8 md:p-10 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col transition-transform hover:scale-[1.02]">
@@ -114,16 +114,14 @@ export default function PricingPage() {
             </div>
             
             <ul className="space-y-4 mb-10 flex-1 text-gray-700 dark:text-gray-300 font-medium">
-              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> סיפור 1 ביום</li>
-              {/* הוספנו את השיר לניסיון */}
+              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> טקסט 1 ביום</li>
               <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> שיר 1 לניסיון (סה"כ)</li>
               <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> תמיכה ברמת N5 בלבד</li>
               <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> שמירת כרטיסיות מילים</li>
               <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> ללא הגבלת טקסטים יומיים</li>
-              {/* חסימת שירים למסלול החינמי */}
-              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> יצירת שירים ללא הגבלה</li>
+              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> יצירת שירים מרובים</li>
+              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> גישה לספריית קהילת ה-PRO</li>
               <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> גישה לרמות N4 עד N1</li>
-              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> ייצוא כרטיסיות ל-Anki</li>
             </ul>
 
             <button disabled className="w-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-bold py-4 rounded-2xl cursor-not-allowed">
@@ -158,13 +156,12 @@ export default function PricingPage() {
             </div>
             
             <ul className="space-y-4 mb-10 flex-1 text-gray-700 dark:text-gray-200 font-bold">
-              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> יצירת טקסטים <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">ללא הגבלה!</span></li>
-              {/* הוספנו את השירים למסלול הפרו! */}
-              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> יצירת שירים אינטראקטיביים <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">ללא הגבלה!</span></li>
+              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> <span className="flex items-center gap-1.5"><BookOpen size={18}/> יצירת טקסטים <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">ללא הגבלה!</span></span></li>
+              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> <span className="flex items-center gap-1.5"><Music size={18}/> יצירת שירים מ-MP3 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">ללא הגבלה!</span> <span className="text-xs text-gray-500 dark:text-gray-400">(+יוטיוב 1 ביום)</span></span></li>
+              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> <span className="flex items-center gap-1.5"><Globe size={18}/> גישה מלאה לספריית הקהילה <Crown size={14} className="text-yellow-500"/></span></li>
               <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> גישה לרמות N4 עד N1</li>
               <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> ייצוא כרטיסיות לתוכנת Anki</li>
               <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> קדימות בעיבוד (AI מהיר יותר)</li>
-              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> תמיכה טכנית VIP</li>
             </ul>
 
             <button 
