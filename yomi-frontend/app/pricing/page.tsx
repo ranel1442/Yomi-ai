@@ -113,18 +113,19 @@ export default function PricingPage() {
               <span className="text-gray-500 dark:text-gray-400 font-medium"> / לחודש</span>
             </div>
             
+            {/* רשימה מתוקנת למסלול החינמי */}
             <ul className="space-y-4 mb-10 flex-1 text-gray-700 dark:text-gray-300 font-medium">
-              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> טקסט 1 ביום</li>
-              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> שיר 1 לניסיון (סה"כ)</li>
-              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> תמיכה ברמת N5 בלבד</li>
-              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> שמירת כרטיסיות מילים</li>
-              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> ללא הגבלת טקסטים יומיים</li>
-              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> יצירת שירים מרובים</li>
-              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> גישה לספריית קהילת ה-PRO</li>
-              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> גישה לרמות N4 עד N1</li>
+              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> <span className="text-sm md:text-base">טקסט 1 ביום</span></li>
+              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> <span className="text-sm md:text-base">שיר 1 לניסיון (סה"כ)</span></li>
+              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> <span className="text-sm md:text-base">תמיכה ברמת N5 בלבד</span></li>
+              <li className="flex items-center gap-3"><Check className="text-green-500" size={20} /> <span className="text-sm md:text-base">שמירת כרטיסיות מילים</span></li>
+              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> <span className="text-sm md:text-base">ללא הגבלת טקסטים יומיים</span></li>
+              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> <span className="text-sm md:text-base">יצירת שירים מרובים</span></li>
+              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> <span className="text-sm md:text-base">גישה לספריית קהילת ה-PRO</span></li>
+              <li className="flex items-center gap-3 text-gray-400 dark:text-gray-600 line-through"><X size={20} /> <span className="text-sm md:text-base">גישה לרמות N4 עד N1</span></li>
             </ul>
 
-            <button disabled className="w-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-bold py-4 rounded-2xl cursor-not-allowed">
+            <button disabled className="w-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-bold py-4 rounded-2xl cursor-not-allowed text-sm md:text-base">
               {isPro ? 'המסלול הקודם שלך' : 'המסלול הנוכחי שלך'}
             </button>
           </div>
@@ -155,13 +156,62 @@ export default function PricingPage() {
               )}
             </div>
             
+            {/* 🌟 רשימה מתוקנת לחלוטין למסלול ה-PRO - מטפלת בבעיות שבירה במובייל */}
             <ul className="space-y-4 mb-10 flex-1 text-gray-700 dark:text-gray-200 font-bold">
-              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> <span className="flex items-center gap-1.5"><BookOpen size={18}/> יצירת טקסטים <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">ללא הגבלה!</span></span></li>
-              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> <span className="flex items-center gap-1.5"><Music size={18}/> יצירת שירים מ-MP3 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">ללא הגבלה!</span> <span className="text-xs text-gray-500 dark:text-gray-400">(+יוטיוב 1 ביום)</span></span></li>
-              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> <span className="flex items-center gap-1.5"><Globe size={18}/> גישה מלאה לספריית הקהילה <Crown size={14} className="text-yellow-500"/></span></li>
-              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> גישה לרמות N4 עד N1</li>
-              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> ייצוא כרטיסיות לתוכנת Anki</li>
-              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> קדימות בעיבוד (AI מהיר יותר)</li>
+              {/* Feature 1 - טקסטים */}
+              <li className="flex items-start gap-3">
+                {/* Check icon מיושר למעלה עם items-start */}
+                <Check className="text-blue-500 flex-shrink-0 mt-0.5" size={24} />
+                {/* 🌟 span inline רגיל - מאפשר לטקסט לזרום טבעית */}
+                <span className="text-sm md:text-base text-gray-700 dark:text-gray-200 leading-tight">
+                  {/* Music icon הופך ל-inline-block וממוקם מול הטקסט */}
+                  <span className="inline-block align-text-bottom ml-1.5 -mb-0.5">
+                    <BookOpen size={18} className="text-gray-600 dark:text-gray-400"/>
+                  </span>
+                  יצירת טקסטים
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 mx-1">
+                    ללא הגבלה!
+                  </span>
+                </span>
+              </li>
+
+              {/* Feature 2 - השורה הבעייתית ביותר, המתוקנת */}
+              <li className="flex items-start gap-3">
+                <Check className="text-blue-500 flex-shrink-0 mt-0.5" size={24} />
+                <span className="text-sm md:text-base text-gray-700 dark:text-gray-200 leading-tight">
+                  <span className="inline-block align-text-bottom ml-1.5 -mb-0.5">
+                    <Music size={18} className="text-gray-600 dark:text-gray-400"/>
+                  </span>
+                  יצירת שירים מ-MP3
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 mx-1">
+                    ללא הגבלה!
+                  </span>
+                  {/* טקסט הסוגריים הופך גם הוא ל-inline ומשתלב בטבעיות */}
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-normal">
+                    (+יוטיוב 1 ביום)
+                  </span>
+                </span>
+              </li>
+
+              {/* Feature 3 - ספריית הקהילה */}
+              <li className="flex items-start gap-3">
+                <Check className="text-blue-500 flex-shrink-0 mt-0.5" size={24} />
+                <span className="text-sm md:text-base text-gray-700 dark:text-gray-200 leading-tight">
+                  <span className="inline-block align-text-bottom ml-1.5 -mb-0.5">
+                    <Globe size={18} className="text-gray-600 dark:text-gray-400"/>
+                  </span>
+                  גישה מלאה לספריית הקהילה
+                  {/* כתר קהילה - align-middle כדי שיישב במרכז השורה */}
+                  <span className="inline-block align-middle mr-1.5">
+                    <Crown size={14} className="text-yellow-500"/>
+                  </span>
+                </span>
+              </li>
+
+              {/* שאר הפונקציות פשוטות יותר, נשאיר אותן items-center */}
+              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> <span className="text-sm md:text-base">גישה לרמות N4 עד N1</span></li>
+              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> <span className="text-sm md:text-base">ייצוא כרטיסיות לתוכנת Anki</span></li>
+              <li className="flex items-center gap-3"><Check className="text-blue-500" size={24} /> <span className="text-sm md:text-base">קדימות בעיבוד (AI מהיר יותר)</span></li>
             </ul>
 
             <button 
