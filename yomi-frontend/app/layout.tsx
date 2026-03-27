@@ -3,13 +3,13 @@
 import './globals.css';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-// שמתי לב שהוספתי את Music לאימפורט כאן
 import { BookOpen, LibraryBig, Languages, BrainCircuit, LogOut, User, Moon, Sun, Menu, X, Settings, Flame, Mail, Music } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useStreak } from '../hooks/useStreak'; 
 import { supabase } from '../services/supabase';
 import { useState, useEffect } from 'react';
 import Footer from '../components/Footer'; 
+import Pwa from '../components/Pwa'; // 🌟 ייבוא רכיב ה-PWA שהוספנו
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -45,8 +45,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <html lang="he" dir="rtl" className={isDark ? 'dark' : ''}>
+      {/* 🌟 הוספנו את ה-head כדי לקשר את ה-Manifest והצבע ידנית כי זה קובץ use client */}
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#121212" />
+      </head>
+      
       <body className="bg-gray-50 dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 font-sans min-h-screen flex flex-col transition-colors duration-300">
         
+        {/* 🌟 הוספנו את רכיב ה-PWA שרושם את ה-Service Worker */}
+        <Pwa />
+
         {!isLoginPage && (
           <nav className="bg-white/80 dark:bg-[#111827]/80 backdrop-blur-md shadow-sm dark:shadow-blue-900/10 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-40 transition-colors">
             <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center relative">
@@ -68,7 +77,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/flashcards" className={`flex items-center gap-1.5 font-medium transition-colors ${pathname === '/flashcards' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400'}`}>
                   <BrainCircuit size={18} /> תרגול
                 </Link>
-                {/* 🌟 הקישור החדש לעמוד השירים בדסקטופ */}
                 <Link href="/songs" className={`flex items-center gap-1.5 font-medium transition-colors ${pathname === '/songs' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400'}`}>
                   <Music size={18} /> שירים
                 </Link>
@@ -98,7 +106,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </span>
                     </div>
                     
-                    <Link href="/settings" className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all shrink-0" title="הגדרות">
+                    <Link href="/settings" className="p-1.5 text-gray-400 hover:text-blue-50 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all shrink-0" title="הגדרות">
                       <Settings size={18} />
                     </Link>
 
@@ -145,7 +153,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/flashcards" className={`flex items-center gap-3 p-4 rounded-2xl font-bold transition-colors ${pathname === '/flashcards' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                   <BrainCircuit size={22} /> תרגול
                 </Link>
-                {/* 🌟 הקישור החדש לעמוד השירים במובייל */}
                 <Link href="/songs" className={`flex items-center gap-3 p-4 rounded-2xl font-bold transition-colors ${pathname === '/songs' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                   <Music size={22} /> שירים
                 </Link>
