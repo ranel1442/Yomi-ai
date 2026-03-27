@@ -176,7 +176,6 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
       audio.playbackRate = playbackSpeed;
       audioRef.current = audio;
 
-      // מאזין לשגיאות ברמת הנגן (אם הקובץ דפוק)
       audio.onerror = (e) => {
         console.error('❌ [Audio Full] נגן השמע זרק שגיאה. ייתכן שהקובץ שחזר אינו שמע תקין אלא הודעת שגיאה בתוך Blob.', e);
         setIsAudioLoading(false);
@@ -227,7 +226,6 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
       console.error('❌ [Audio Full] השגיאה נתפסה ב-CATCH:');
       console.error('Message:', error.message);
       
-      // אם זו שגיאת רשת של אקסיוס
       if (error.response) {
         console.error('Status Code:', error.response.status);
         console.error('Response Data:', error.response.data);
@@ -411,9 +409,10 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
         </div>
       </div>
 
-      <div className="text-3xl leading-[2.8] flex flex-wrap gap-x-1 gap-y-6 text-gray-900 dark:text-gray-100 text-left relative z-10" dir="ltr">
+      {/* 🌟 אזור הטקסט המתוקן (רספונסיבי וזהה לשירים) */}
+      <div className="leading-[3.5] text-gray-900 dark:text-gray-100 text-left relative z-10" dir="ltr">
         {sentencesWithGlobalIdx.map((sentence, sIdx) => (
-          <React.Fragment key={sIdx}>
+          <span key={sIdx} className="inline">
             {sentence.words.map((word) => {
               const isHighlighted = highlightedWordIdx === word.globalIdx;
               
@@ -427,14 +426,14 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
                 <span
                   key={word.globalIdx}
                   onClick={() => setSelectedWord(word)}
-                  className={`cursor-pointer transition-all duration-150 px-1 rounded-lg ${
+                  className={`cursor-pointer transition-all duration-150 px-1 mx-[1px] md:mx-1 rounded-lg inline-block ${
                     isHighlighted 
                       ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-900 dark:text-blue-300 shadow-sm scale-105' 
                       : 'hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
                 >
-                  <ruby className="flex flex-col items-center">
-                    <rt className={`text-sm pb-1 font-normal tracking-wide transition-all duration-300 ${
+                  <ruby className="text-xl md:text-2xl flex flex-col items-center">
+                    <rt className={`text-[10px] md:text-xs pb-0.5 font-normal tracking-wide transition-all duration-300 ${
                       isHighlighted ? 'text-blue-700 dark:text-blue-300 font-medium' : 'text-gray-500 dark:text-gray-400'
                     } ${!shouldShowFurigana ? 'opacity-0 select-none' : 'opacity-100'}`}>
                       {word.reading || ' '}
@@ -444,8 +443,7 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
                 </span>
               );
             })}
-            <span className="w-4"></span>
-          </React.Fragment>
+          </span>
         ))}
       </div>
 
