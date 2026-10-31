@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+.next/
+yomi-frontend/.next/
+yomi-frontend/out/
+yomi-frontend/build/
+
+# Environment & Secrets (NEVER commit)
+.env
+.env.*
+yomi-backend/.env
+yomi-backend/*.json
+!yomi-backend/package.json
+!yomi-backend/package-lock.json
+yomi-frontend/.env*
+
+# Local SRS & Database Backups
+backups/
+yomi-backend/backups/
+
+# OS & Logs
+.DS_Store
+*.log
+*.tsbuildinfo
+.vercel/
+
