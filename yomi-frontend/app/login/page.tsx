@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { supabase } from '../../services/supabase';
+import { supabase, getAuthRedirectUrl } from '../../services/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, Loader2, Languages } from 'lucide-react';
@@ -29,13 +29,18 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = async () => {
+    setError(null);
+    const redirectTo = getAuthRedirectUrl('/auth/callback');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`
-      }
+        redirectTo,
+      },
     });
-    if (error) console.error(error);
+    if (error) {
+      console.error('Google OAuth Error:', error);
+      setError('שגיאה בהתחברות עם Google. אנא נסה שוב.');
+    }
   };
 
   return (

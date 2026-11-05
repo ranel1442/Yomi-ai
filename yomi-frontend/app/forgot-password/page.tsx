@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { supabase } from '../../services/supabase';
+import { supabase, getAuthRedirectUrl } from '../../services/supabase';
 import Link from 'next/link';
 import { Loader2, Mail, ArrowRight, CheckCircle, KeyRound } from 'lucide-react';
 
@@ -20,7 +20,7 @@ export default function ForgotPasswordPage() {
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         // אנחנו שולחים אותו ישר לעמוד ההגדרות שלנו כדי שישנה את הסיסמה
-        redirectTo: `${window.location.origin}/update-password`,
+        redirectTo: getAuthRedirectUrl('/update-password'),
       });
 
       if (resetError) throw resetError;

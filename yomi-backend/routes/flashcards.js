@@ -29,6 +29,7 @@ async function addFlashcardHandler(req, res) {
       storyId,
       songId,
       dialogueId,
+      mangaChapterId,
       kanji,
       reading,
       lemma,
@@ -145,6 +146,7 @@ async function addFlashcardHandler(req, res) {
     const fullPayload = {
       ...basePayload,
       ...(dialogueId ? { dialogue_id: dialogueId } : {}),
+      ...(mangaChapterId ? { manga_chapter_id: mangaChapterId } : {}),
       lemma: resolvedLemma,
       context_sentence: trimmedContextSentence,
       context_translation: trimmedContextTranslation,
@@ -168,12 +170,20 @@ async function addFlashcardHandler(req, res) {
       .insert([fullPayload])
       .select();
 
-    // If `dialogue_id` column hasn't been migrated yet, retry keeping all Phase 2 fields intact
-    if (error && error.message && error.message.includes('dialogue_id')) {
-      const { dialogue_id: _omitted, ...payloadWithoutDialogueId } = fullPayload;
+    // If `dialogue_id` or `manga_chapter_id` column hasn't been migrated yet, retry keeping all Phase 2 fields intact
+    if (
+      error &&
+      error.message &&
+      (error.message.includes('dialogue_id') || error.message.includes('manga_chapter_id'))
+    ) {
+      const {
+        dialogue_id: _omittedDialogue,
+        manga_chapter_id: _omittedManga,
+        ...payloadWithoutOptionalLinks
+      } = fullPayload;
       const retryResult = await supabase
         .from('flashcards')
-        .insert([payloadWithoutDialogueId])
+        .insert([payloadWithoutOptionalLinks])
         .select();
       data = retryResult.data;
       error = retryResult.error;

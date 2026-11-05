@@ -62,6 +62,16 @@ export function useAuth() {
 
     const fetchSession = async () => {
       try {
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          const oauthCode = url.searchParams.get('code');
+          if (oauthCode && !url.pathname.startsWith('/auth/callback')) {
+            await supabase.auth.exchangeCodeForSession(oauthCode).catch(() => null);
+            url.searchParams.delete('code');
+            window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+          }
+        }
+
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) throw sessionError;
 

@@ -201,6 +201,114 @@ async function analyzePassageMorphology(rawText) {
   };
 }
 
+const POS_MAP_JA_TO_EN = {
+  名詞: 'noun',
+  動詞: 'verb',
+  形容詞: 'i-adjective',
+  形状詞: 'na-adjective',
+  副詞: 'adverb',
+  助詞: 'particle',
+  助動詞: 'auxiliary',
+  感動詞: 'interjection',
+  接続詞: 'conjunction',
+  連体詞: 'prenominal',
+  接頭詞: 'prefix',
+  記号: 'punctuation',
+};
+
+/**
+ * Deterministic Kuromoji enrichment & verification for Manga Vision bubbles:
+ * - Builds structured `sentenceFurigana` (`[{ text, furigana }]`) for SRS Context-First cards.
+ * - Cross-checks Gemini's `words[]` against Kuromoji IPADIC so missing readings or
+ *   un-lemmatized inflected tokens get exact dictionary `basic_form` lemmas and Hiragana readings.
+ * - Falls back to full Kuromoji segmentation if `candidateWords` was empty.
+ */
+async function enrichWordsWithKuromoji(japaneseText, candidateWords = []) {
+  const cleanText = String(japaneseText || '').trim();
+  if (!cleanText) {
+    return { words: [], sentenceFurigana: [] };
+  }
+
+  const tokenizer = await getTokenizer();
+  const rawTokens = tokenizer.tokenize(cleanText);
+
+  const sentenceFurigana = rawTokens.map((t) => {
+    const surface = t.surface_form || '';
+    const hiraReading = t.reading ? kata2Hira(t.reading) : '';
+    return {
+      text: surface,
+      furigana: containsKanji(surface) && hiraReading !== surface ? hiraReading : '',
+    };
+  });
+
+  // Build quick lookup by surface form from Kuromoji tokens
+  const kuroBySurface = new Map();
+  for (const t of rawTokens) {
+    const surface = t.surface_form || '';
+    if (!surface || kuroBySurface.has(surface)) continue;
+    const rawBasic = t.basic_form || t.base_form;
+    kuroBySurface.set(surface, {
+      lemma: rawBasic && rawBasic !== '*' ? rawBasic : surface,
+      reading: t.reading ? kata2Hira(t.reading) : '',
+      pos: POS_MAP_JA_TO_EN[t.pos] || 'word',
+    });
+  }
+
+  if (Array.isArray(candidateWords) && candidateWords.length > 0) {
+    const verifiedWords = candidateWords
+      .filter((w) => w && String(w.kanji || '').trim().length > 0)
+      .map((w) => {
+        const surface = String(w.kanji || '');
+        const isPunct = /^[。、！？!?「」『』（）()…・〜ー\s,.]+$/.test(surface);
+        const kuroMatch = kuroBySurface.get(surface);
+
+        let reading = isPunct ? '' : kata2Hira(w.reading || '');
+        if (!isPunct && !reading && kuroMatch?.reading) {
+          reading = kuroMatch.reading;
+        }
+
+        let lemma = String(w.lemma || '').trim() || surface;
+        if (!isPunct && lemma === surface && kuroMatch && kuroMatch.lemma !== surface) {
+          lemma = kuroMatch.lemma;
+        }
+
+        return {
+          kanji: surface,
+          reading,
+          lemma,
+          meaning: isPunct ? '' : String(w.meaning || '').trim(),
+          type: isPunct ? 'punctuation' : String(w.type || kuroMatch?.pos || 'word').trim(),
+          conjugation_breakdown: isPunct ? '' : String(w.conjugation_breakdown || '').trim(),
+        };
+      });
+
+    if (verifiedWords.length > 0) {
+      return { words: verifiedWords, sentenceFurigana };
+    }
+  }
+
+  // Fallback: build directly from Kuromoji tokens
+  const fallbackWords = rawTokens.map((t) => {
+    const surface = t.surface_form || '';
+    const isPunct = t.pos === '記号' || /^[。、！？!?「」『』（）()…・\s,.]+$/.test(surface);
+    const rawBasic = t.basic_form || t.base_form;
+    const lemma = rawBasic && rawBasic !== '*' ? rawBasic : surface;
+    const reading = !isPunct && t.reading ? kata2Hira(t.reading) : '';
+
+    return {
+      kanji: surface,
+      reading,
+      lemma,
+      meaning: '',
+      type: isPunct ? 'punctuation' : POS_MAP_JA_TO_EN[t.pos] || 'word',
+      conjugation_breakdown:
+        !isPunct && t.conjugated_form && t.conjugated_form !== '*' ? t.conjugated_form : '',
+    };
+  });
+
+  return { words: fallbackWords, sentenceFurigana };
+}
+
 module.exports = {
   getTokenizer,
   kata2Hira,
@@ -211,4 +319,5 @@ module.exports = {
   buildContextFurigana,
   extractWordMorphologyHint,
   analyzePassageMorphology,
+  enrichWordsWithKuromoji,
 };

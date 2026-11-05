@@ -18,6 +18,8 @@ export interface FlashcardItem {
   user_id?: string | null;
   story_id?: string | null;
   song_id?: string | null;
+  dialogue_id?: string | null;
+  manga_chapter_id?: string | null;
   kanji: string;
   reading: string;
   lemma?: string | null;
@@ -50,6 +52,7 @@ export interface AddFlashcardPayload {
   storyId?: string | null;
   songId?: string | null;
   dialogueId?: string | null;
+  mangaChapterId?: string | null;
   kanji: string;
   reading?: string;
   lemma?: string;
@@ -643,3 +646,244 @@ export const getTrainerStats = async (userId: string): Promise<TrainerStats> => 
   const response = await axios.get(`${API_URL}/trainer/stats/${userId}`);
   return response.data;
 };
+
+// ============================================================================
+// Phase 7: Full Manga Chapter Vision & Reverse-Immersion Studio (`/manga`) API
+// ============================================================================
+
+export type MangaSourceLanguage = 'he_en_translated' | 'ja_raw';
+export type MangaPageStatus = 'pending' | 'analyzing' | 'ready' | 'error';
+
+export interface MangaBubbleWord {
+  kanji: string;
+  reading: string;
+  lemma: string;
+  meaning: string;
+  type: string;
+  conjugation_breakdown?: string;
+}
+
+export interface MangaSpeechBubble {
+  bubble_index: number;
+  bubble_type: 'speech' | 'shout' | 'thought' | 'narration';
+  speaker_id: string;
+  speaker_name_ja: string;
+  speaker_name_he: string;
+  speaker_gender: 'male' | 'female';
+  emotion: string;
+  original_text: string;
+  japanese: string;
+  translation_hebrew: string;
+  sensei_note: string;
+  sentence_furigana: ContextFuriganaToken[];
+  words: MangaBubbleWord[];
+  audio_url?: string | null;
+}
+
+export interface MangaSfxItem {
+  sfx_text: string;
+  reading: string;
+  meaning_hebrew: string;
+  context_vibe: string;
+  audio_url?: string | null;
+}
+
+export interface MangaPageItem {
+  page_number: number;
+  file_name: string;
+  storage_path?: string | null;
+  mime_type?: string;
+  image_url: string;
+  status: MangaPageStatus;
+  page_summary_hebrew?: string;
+  bubbles: MangaSpeechBubble[];
+  sfx_list: MangaSfxItem[];
+  error_message?: string;
+  analyzed_at?: string;
+}
+
+export interface MangaChapter {
+  id: string;
+  user_id?: string;
+  title: string;
+  source_language: MangaSourceLanguage;
+  jlpt_target: string;
+  total_pages: number;
+  characters: DialogueCharacter[];
+  pages: MangaPageItem[];
+  created_at?: string;
+}
+
+export interface MangaDubEvaluation {
+  is_correct: boolean;
+  grammar_score: number;
+  naturalness_score: number;
+  character_vibe_match: string;
+  corrected_user_sentence: string;
+  feedback_hebrew: string;
+  manga_native_line: string;
+  manga_native_reading: string;
+  reference_audio_url?: string | null;
+}
+
+export interface MangaBoostedCardInfo {
+  card: FlashcardItem;
+  rating: SrsRating;
+  nextIntervalLabel: string;
+}
+
+export interface EvaluateMangaDubResponse {
+  evaluation: MangaDubEvaluation;
+  boostedCards: MangaBoostedCardInfo[];
+}
+
+export const createMangaChapter = async (payload: {
+  title: string;
+  sourceLanguage: MangaSourceLanguage;
+  jlptTarget: string;
+  userId: string;
+  files: File[];
+}): Promise<{ persisted: boolean; chapter: MangaChapter }> => {
+  const formData = new FormData();
+  formData.append('title', payload.title);
+  formData.append('sourceLanguage', payload.sourceLanguage);
+  formData.append('jlptTarget', payload.jlptTarget);
+  formData.append('userId', payload.userId);
+  for (const file of payload.files) {
+    formData.append('pages', file);
+  }
+
+  const response = await axios.post(`${API_URL}/manga/chapters`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+export const analyzeMangaChapterPage = async (
+  chapterId: string,
+  pageNumber: number,
+  force: boolean = false
+): Promise<{
+  chapterId: string;
+  cached: boolean;
+  page: MangaPageItem;
+  characters: DialogueCharacter[];
+}> => {
+  const response = await axios.post(
+    `${API_URL}/manga/chapters/${chapterId}/analyze-page/${pageNumber}`,
+    { force }
+  );
+  return response.data;
+};
+
+export const evaluateMangaDubChallenge = async (payload: {
+  userId?: string | null;
+  originalText: string;
+  referenceJapanese: string;
+  translationHebrew: string;
+  speakerNameHe?: string;
+  speakerPersona?: string;
+  voiceName?: string;
+  speakingRate?: number;
+  pitch?: number;
+  bubbleWords?: MangaBubbleWord[];
+  userSentenceJapanese: string;
+}): Promise<EvaluateMangaDubResponse> => {
+  const response = await axios.post(
+    `${API_URL}/manga/dub-challenge/evaluate`,
+    payload
+  );
+  return response.data;
+};
+
+export const getUserMangaChapters = async (userId: string): Promise<MangaChapter[]> => {
+  const response = await axios.get(`${API_URL}/manga/chapters/user/${userId}`);
+  return response.data;
+};
+
+export const getMangaChapterById = async (chapterId: string): Promise<MangaChapter> => {
+  const response = await axios.get(`${API_URL}/manga/chapters/${chapterId}`);
+  return response.data;
+};
+
+export const deleteMangaChapter = async (chapterId: string) => {
+  const response = await axios.delete(`${API_URL}/manga/chapters/${chapterId}`);
+  return response.data;
+};
+
+// ============================================================================
+// Phase 8: Mastery Analytics & Browser Backup Command Center (`/analytics`) API
+// ============================================================================
+
+export interface AnalyticsHeatmapDay {
+  date: string;
+  reviews: number;
+  stories: number;
+  dialogues: number;
+  trainer: number;
+  manga: number;
+  cardsMined: number;
+  total: number;
+}
+
+export interface AnalyticsSummaryResponse {
+  userId: string;
+  totalCards: number;
+  dueNowCount: number;
+  avgStability: number;
+  avgDifficulty: number;
+  fsrsBreakdown: {
+    new: number;
+    learning: number;
+    review: number;
+    mastered: number;
+  };
+  retentionRate: number | null;
+  totalReviews: number;
+  passedReviews: number;
+  totalOutputSuccesses: number;
+  trainerCompletedCount: number;
+  trainerAccuracyRate: number | null;
+  activeDaysLast30: number;
+  totalActionsLast30: number;
+  libraryTotals: {
+    stories: number;
+    dialogues: number;
+    outputChallenges: number;
+    mangaChapters: number;
+  };
+  heatmap30Days: AnalyticsHeatmapDay[];
+}
+
+export const getAnalyticsSummary = async (
+  userId: string
+): Promise<AnalyticsSummaryResponse> => {
+  const response = await axios.get(`${API_URL}/analytics/summary/${userId}`);
+  return response.data;
+};
+
+export const downloadAnalyticsBackup = async (userId: string): Promise<string> => {
+  const response = await axios.get(`${API_URL}/analytics/export-backup/${userId}`, {
+    responseType: 'blob',
+  });
+
+  const contentDisposition = String(response.headers['content-disposition'] || '');
+  const match = contentDisposition.match(/filename="?([^"]+)"?/i);
+  const today = new Date().toISOString().slice(0, 10);
+  const fileName = match?.[1] || `yomi_backup_${today}.json`;
+
+  const blob = new Blob([response.data], { type: 'application/json;charset=utf-8' });
+  const blobUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(blobUrl);
+
+  return fileName;
+};
+

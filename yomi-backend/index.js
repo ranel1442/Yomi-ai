@@ -18,6 +18,8 @@ const analyzeRoutes = require('./routes/analyze');
 const dialoguesRoutes = require('./routes/dialogues');
 const importerRoutes = require('./routes/importer');
 const trainerRoutes = require('./routes/trainer');
+const mangaRoutes = require('./routes/manga');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 
@@ -101,7 +103,7 @@ app.post('/api/webhook/lemonsqueezy', express.raw({ type: 'application/json' }),
 // =========================================================================
 // שאר הראוטים הרגילים של המערכת
 // =========================================================================
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 app.use('/api/stories', storiesRoutes);
 app.use('/api/audio', audioRoutes);
@@ -111,6 +113,8 @@ app.use('/api/analyze', analyzeRoutes);
 app.use('/api/dialogues', dialoguesRoutes);
 app.use('/api/importer', importerRoutes);
 app.use('/api/trainer', trainerRoutes);
+app.use('/api/manga', mangaRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 app.get('/', (req, res) => {
   res.send('Yomi-AI Backend is running smoothly with Lemon Squeezy!');

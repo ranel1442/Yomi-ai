@@ -190,10 +190,18 @@ async function runBackup() {
     `  -> Exported ${profiles.length} profile(s), ${flashcards.length} flashcard(s), ${reviewLogs.length} review log(s)\n`
   );
 
-  console.log('[3/4] Exporting immersion tables (`dialogues`, `output_challenges`, `stories`)...');
+  console.log('[3/4] Exporting immersion tables (`dialogues`, `manga_chapters`, `output_challenges`, `stories`)...');
   const dialogues = await fetchOptionalTableRows('dialogues', () =>
     supabase
       .from('dialogues')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+  );
+
+  const mangaChapters = await fetchOptionalTableRows('manga_chapters', () =>
+    supabase
+      .from('manga_chapters')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
@@ -216,7 +224,7 @@ async function runBackup() {
   );
 
   console.log(
-    `  -> Exported ${dialogues.length} dialogue(s), ${outputChallenges.length} trainer challenge(s), ${stories.length} story/stories\n`
+    `  -> Exported ${dialogues.length} dialogue(s), ${mangaChapters.length} manga chapter(s), ${outputChallenges.length} trainer challenge(s), ${stories.length} story/stories\n`
   );
 
   console.log('[4/4] Writing formatted JSON snapshot to local `backups/` directory...');
@@ -228,7 +236,7 @@ async function runBackup() {
   const backupPayload = {
     metadata: {
       project: 'Yomi-AI',
-      schema_version: 'phase6-fsrs-v4.5',
+      schema_version: 'phase7-manga-vision',
       exported_at: new Date().toISOString(),
       supabase_url: SUPABASE_URL,
       admin_email: adminUser.email,
@@ -238,6 +246,7 @@ async function runBackup() {
         flashcards: flashcards.length,
         review_logs: reviewLogs.length,
         dialogues: dialogues.length,
+        manga_chapters: mangaChapters.length,
         output_challenges: outputChallenges.length,
         stories: stories.length,
       },
@@ -247,6 +256,7 @@ async function runBackup() {
       flashcards,
       review_logs: reviewLogs,
       dialogues,
+      manga_chapters: mangaChapters,
       output_challenges: outputChallenges,
       stories,
     },

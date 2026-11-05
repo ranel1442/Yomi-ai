@@ -1,7 +1,7 @@
 const path = require('path');
 const { GoogleGenerativeAI, SchemaType } = require('@google/generative-ai');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env'), quiet: true });
-const { kata2Hira } = require('./morphologyService');
+const { kata2Hira, enrichWordsWithKuromoji } = require('./morphologyService');
 const { assignCharacterVoices } = require('./audioService');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -950,6 +950,390 @@ EVALUATION GUIDELINES:
   }
 }
 
+// ============================================================================
+// Phase 7: Full Manga Chapter Vision & Reverse-Immersion Schemas & Services
+// ============================================================================
+
+const MANGA_PAGE_VISION_SCHEMA = {
+  type: SchemaType.OBJECT,
+  properties: {
+    page_summary_hebrew: { type: SchemaType.STRING },
+    characters_detected: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          id: { type: SchemaType.STRING },
+          name_ja: { type: SchemaType.STRING },
+          name_he: { type: SchemaType.STRING },
+          gender: { type: SchemaType.STRING },
+          personality: { type: SchemaType.STRING },
+        },
+        required: ['id', 'name_ja', 'name_he', 'gender', 'personality'],
+      },
+    },
+    bubbles: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          bubble_index: { type: SchemaType.INTEGER },
+          bubble_type: { type: SchemaType.STRING },
+          speaker_id: { type: SchemaType.STRING },
+          speaker_name_ja: { type: SchemaType.STRING },
+          speaker_name_he: { type: SchemaType.STRING },
+          speaker_gender: { type: SchemaType.STRING },
+          emotion: { type: SchemaType.STRING },
+          original_text: { type: SchemaType.STRING },
+          japanese: { type: SchemaType.STRING },
+          translation_hebrew: { type: SchemaType.STRING },
+          sensei_note: { type: SchemaType.STRING },
+          words: {
+            type: SchemaType.ARRAY,
+            items: WORD_TOKEN_SCHEMA,
+          },
+        },
+        required: [
+          'bubble_index',
+          'bubble_type',
+          'speaker_id',
+          'speaker_name_ja',
+          'speaker_name_he',
+          'speaker_gender',
+          'emotion',
+          'original_text',
+          'japanese',
+          'translation_hebrew',
+          'sensei_note',
+          'words',
+        ],
+      },
+    },
+    sfx_list: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          sfx_text: { type: SchemaType.STRING },
+          reading: { type: SchemaType.STRING },
+          meaning_hebrew: { type: SchemaType.STRING },
+          context_vibe: { type: SchemaType.STRING },
+        },
+        required: ['sfx_text', 'reading', 'meaning_hebrew', 'context_vibe'],
+      },
+    },
+  },
+  required: ['page_summary_hebrew', 'characters_detected', 'bubbles', 'sfx_list'],
+};
+
+const MANGA_DUB_EVAL_SCHEMA = {
+  type: SchemaType.OBJECT,
+  properties: {
+    is_correct: { type: SchemaType.BOOLEAN },
+    grammar_score: { type: SchemaType.INTEGER },
+    naturalness_score: { type: SchemaType.INTEGER },
+    character_vibe_match: { type: SchemaType.STRING },
+    corrected_user_sentence: { type: SchemaType.STRING },
+    feedback_hebrew: { type: SchemaType.STRING },
+    manga_native_line: { type: SchemaType.STRING },
+    manga_native_reading: { type: SchemaType.STRING },
+  },
+  required: [
+    'is_correct',
+    'grammar_score',
+    'naturalness_score',
+    'character_vibe_match',
+    'corrected_user_sentence',
+    'feedback_hebrew',
+    'manga_native_line',
+    'manga_native_reading',
+  ],
+};
+
+/**
+ * Analyzes a single Manga Page image using Gemini 2.5 Flash Multimodal Vision
+ * + deterministic local Kuromoji enrichment (`enrichWordsWithKuromoji`).
+ */
+async function analyzeMangaPageVision({
+  imageBuffer,
+  mimeType = 'image/jpeg',
+  sourceLanguage = 'he_en_translated',
+  jlptTarget = 'N4',
+  knownCharacters = [],
+  chapterTitle = '',
+}) {
+  if (!imageBuffer || !Buffer.isBuffer(imageBuffer)) {
+    throw new Error('Valid imageBuffer is required for manga vision analysis');
+  }
+
+  const resolvedTrack =
+    sourceLanguage === 'ja_raw' ? 'ja_raw' : 'he_en_translated';
+
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: MANGA_PAGE_VISION_SCHEMA,
+    },
+  });
+
+  const knownRosterHint =
+    Array.isArray(knownCharacters) && knownCharacters.length > 0
+      ? `EXISTING CHAPTER CHARACTER ROSTER (REUSE THESE EXACT IDs & NAMES WHENEVER THE SAME CHARACTER SPEAKS ON THIS PAGE!):
+${JSON.stringify(
+  knownCharacters.map((c) => ({
+    id: c.id,
+    name_ja: c.name_ja,
+    name_he: c.name_he,
+    gender: c.gender,
+    personality: c.personality,
+  }))
+)}`
+      : 'No prior characters registered yet — assign clean IDs like "char_1", "char_2", "narrator".';
+
+  const trackInstructions =
+    resolvedTrack === 'he_en_translated'
+      ? `TRACK = "he_en_translated" (Translated Hebrew or English Manga Page -> Authentic Manga Japanese Reverse-Engineering):
+1. Read EVERY speech bubble, shout bubble, thought bubble, and narration caption box on the page in **Japanese Manga Reading Order: Right-to-Left, Top-to-Bottom across panels, and Right-to-Left, Top-to-Bottom inside each panel**.
+2. "original_text": Transcribe the exact Hebrew or English text written inside the bubble accurately.
+3. Visually & contextually identify the speaking character from the artwork and series context ("${chapterTitle}"):
+   - If recognizable characters appear (e.g., One Piece: ルフィ/לופי, ゾロ/זורו, ナミ/נami, サンジ/סאנג׳י; Hunter x Hunter: ゴン/גון, キルア/קילואה, etc.), use their canonical Japanese & Hebrew names and iconic Japanese speech quirks!
+   - Otherwise, infer a vivid character label from their visual look (e.g., "לוחם צעיר" / "若き戦士", or "מספר" / "ナレーター" for narration boxes).
+4. "japanese": **Reverse-engineer authentic, natural Manga Japanese** that a real Japanese mangaka would write for that exact bubble and character persona!
+   - Match character role-language (役割語): e.g., Shonen male heroes/rivals using 俺 / お前 / てめぇ / 〜ぞ / 〜ぜ / 〜じゃねぇか, calm strategists using 僕 / 〜だね / 〜だろう, expressive female characters, or formal narration.
+   - Calibrate vocabulary complexity around JLPT ${jlptTarget} where natural without sacrificing authentic manga voice.
+   - Do NOT wrap "japanese" in outer quotation marks 「」.
+5. "translation_hebrew": Clean, natural Hebrew translation of the bubble (if original_text was Hebrew, keep/polish it; if English, translate naturally to Hebrew).
+6. "sensei_note": Concise, insightful Hebrew Sensei note (1-3 sentences) explaining HOW the Hebrew/English phrase maps to the Japanese grammar, spoken contractions (e.g. 〜てる, 〜ちゃう, 〜ねぇ), pronouns, or manga slang.`
+      : `TRACK = "ja_raw" (Original Raw Japanese Manga Page -> OCR + Hebrew Sensei Breakdown):
+1. Perform high-precision Japanese Manga OCR in **Right-to-Left, Top-to-Bottom** panel and bubble reading order.
+   - Ignore tiny furigana ruby characters printed beside Kanji so furigana is NOT duplicated inside the Kanji text.
+2. "original_text": Exact Japanese text printed in the bubble.
+3. "japanese": Clean Japanese text of the bubble (without outer 「」).
+4. Visually & contextually identify the speaking character ("speaker_id", "speaker_name_ja", "speaker_name_he", "speaker_gender" strictly "male" or "female").
+5. "translation_hebrew": Expressive, accurate Hebrew translation of the bubble.
+6. "sensei_note": Concise Hebrew Sensei explanation (1-3 sentences) unpacking the grammar, colloquial contractions, role-language pronouns (役割語), and tone.`;
+
+  const prompt = `
+You are an elite Manga Vision AI, Japanese Mangaka Script Director, and Linguistics Sensei teaching a Hebrew speaker.
+Analyze the attached manga page image${chapterTitle ? ` from "${chapterTitle}"` : ''}.
+
+${knownRosterHint}
+
+${trackInstructions}
+
+MORPHOLOGICAL TOKENIZATION ("words" array per bubble):
+For EVERY bubble's "japanese" text:
+- Segment the entire sentence into meaningful Japanese word/morpheme tokens so concatenating all "kanji" fields equals "japanese".
+- Keep conjugated verbs/adjectives intact as ONE token (e.g. "ぶっ飛ばす" or "食べさせられた" is one token with dictionary "lemma"), keep particles (は, が, を, に, で, ぞ, ぜ, よ, か) separate, and keep punctuation (！, ？, 。, 、, …) as "type": "punctuation".
+- Each token MUST include:
+  - "kanji": surface form in bubble
+  - "reading": full Hiragana reading ("" for punctuation)
+  - "lemma": dictionary base form
+  - "meaning": contextual Hebrew meaning ("" for punctuation)
+  - "type": part of speech in English ("verb", "noun", "i-adjective", "na-adjective", "adverb", "particle", "pronoun", "interjection", "expression", "punctuation")
+  - "conjugation_breakdown": concise grammatical breakdown from lemma ("" if uninflected)
+
+VISUAL SFX RADAR ("sfx_list"):
+- Detect drawn sound effects / onomatopoeia (擬音語・擬態語) in the page artwork (e.g., ドン！, ザアアア, ゴゴゴゴ, バキッ, ドキドキ, シュッ).
+- If the page is translated and drawn SFX were translated in Hebrew/English on the art (e.g., "בום!", "דון!", "סלאש!"), map each prominent drawn SFX to its authentic Japanese manga Katakana/Hiragana SFX in "sfx_text" (e.g. "ドン！", "ザシュッ！"), give its Hiragana "reading", "meaning_hebrew", and "context_vibe" (in Hebrew, explaining the dramatic visual atmosphere).
+
+PAGE SUMMARY:
+- "page_summary_hebrew": 1-2 sentence Hebrew summary of the action/scene happening on this manga page.
+- If a splash/cover page has 0 speech bubbles, return an empty "bubbles": [] array and describe the visual splash artwork in "page_summary_hebrew" + any visible SFX in "sfx_list".
+`;
+
+  const imagePart = {
+    inlineData: {
+      data: imageBuffer.toString('base64'),
+      mimeType: mimeType || 'image/jpeg',
+    },
+  };
+
+  try {
+    const result = await executeWithRetry(() =>
+      model.generateContent([prompt, imagePart])
+    );
+    const parsed = JSON.parse(cleanJsonText(result.response.text()));
+
+    // Normalize detected characters
+    const detectedChars = (parsed.characters_detected || []).map((c, idx) => ({
+      id: String(c.id || `char_${idx + 1}`).trim(),
+      name_ja: String(c.name_ja || `キャラ${idx + 1}`).trim(),
+      name_he: String(c.name_he || `דמות ${idx + 1}`).trim(),
+      gender: String(c.gender || '').toLowerCase() === 'female' ? 'female' : 'male',
+      personality: String(c.personality || '').trim(),
+    }));
+
+    // Enrich every bubble deterministically with local Kuromoji (`morphologyService.js`)
+    const rawBubbles = Array.isArray(parsed.bubbles) ? parsed.bubbles : [];
+    const enrichedBubbles = [];
+
+    for (let i = 0; i < rawBubbles.length; i++) {
+      const b = rawBubbles[i];
+      const cleanJa = String(b.japanese || '').trim();
+      const sanitizedCandidates = sanitizeWordTokens(b.words || [], false);
+      const { words: kuromojiVerifiedWords, sentenceFurigana } =
+        await enrichWordsWithKuromoji(cleanJa, sanitizedCandidates);
+
+      // If any fallback content token lacked a Hebrew meaning, translate in one batch
+      const missingMeaningSurfaces = [
+        ...new Set(
+          kuromojiVerifiedWords
+            .filter(
+              (w) =>
+                w.type !== 'punctuation' &&
+                w.type !== 'particle' &&
+                !w.meaning &&
+                w.lemma
+            )
+            .map((w) => w.lemma)
+        ),
+      ];
+
+      let fallbackTranslations = {};
+      if (missingMeaningSurfaces.length > 0) {
+        fallbackTranslations = await translateJapaneseWords(missingMeaningSurfaces);
+      }
+
+      const finalWords = kuromojiVerifiedWords.map((w) => ({
+        ...w,
+        meaning: w.meaning || fallbackTranslations[w.lemma] || '',
+      }));
+
+      const speakerGender =
+        String(b.speaker_gender || '').toLowerCase() === 'female' ? 'female' : 'male';
+      const speakerId = String(b.speaker_id || `char_${i + 1}`).trim();
+
+      // Ensure speaker also exists in `detectedChars`
+      if (!detectedChars.some((c) => c.id === speakerId)) {
+        detectedChars.push({
+          id: speakerId,
+          name_ja: String(b.speaker_name_ja || 'キャラ').trim(),
+          name_he: String(b.speaker_name_he || 'דמות').trim(),
+          gender: speakerGender,
+          personality: String(b.emotion || '').trim(),
+        });
+      }
+
+      enrichedBubbles.push({
+        bubble_index: i + 1,
+        bubble_type: ['speech', 'shout', 'thought', 'narration'].includes(
+          String(b.bubble_type || '').toLowerCase()
+        )
+          ? String(b.bubble_type).toLowerCase()
+          : 'speech',
+        speaker_id: speakerId,
+        speaker_name_ja: String(b.speaker_name_ja || '').trim(),
+        speaker_name_he: String(b.speaker_name_he || '').trim(),
+        speaker_gender: speakerGender,
+        emotion: String(b.emotion || '').trim(),
+        original_text: String(b.original_text || '').trim(),
+        japanese: cleanJa || finalWords.map((w) => w.kanji).join(''),
+        translation_hebrew: String(b.translation_hebrew || '').trim(),
+        sensei_note: String(b.sensei_note || '').trim(),
+        sentence_furigana: sentenceFurigana,
+        words: finalWords,
+        audio_url: null,
+      });
+    }
+
+    const sfxList = (parsed.sfx_list || [])
+      .filter((s) => s && String(s.sfx_text || '').trim())
+      .map((s) => ({
+        sfx_text: String(s.sfx_text || '').trim(),
+        reading: kata2Hira(s.reading || ''),
+        meaning_hebrew: String(s.meaning_hebrew || '').trim(),
+        context_vibe: String(s.context_vibe || '').trim(),
+      }));
+
+    return {
+      page_summary_hebrew: String(parsed.page_summary_hebrew || '').trim(),
+      characters_detected: detectedChars,
+      bubbles: enrichedBubbles,
+      sfx_list: sfxList,
+    };
+  } catch (error) {
+    console.error('Error analyzing manga page vision with Gemini:', error);
+    throw new Error(`Failed to analyze manga page vision: ${error.message}`);
+  }
+}
+
+/**
+ * Evaluates a learner's spoken/typed Japanese Reverse-Dubbing attempt for a Manga Bubble.
+ */
+async function evaluateMangaDubAttempt({
+  originalText = '',
+  referenceJapanese = '',
+  translationHebrew = '',
+  speakerNameHe = '',
+  speakerPersona = '',
+  userSentenceJapanese = '',
+  kuromojiTokens = [],
+}) {
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: MANGA_DUB_EVAL_SCHEMA,
+    },
+  });
+
+  const clampScore = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+
+  const prompt = `
+You are an enthusiastic Japanese Anime/Manga Voice-Acting Director (音響監督) and Linguistics Sensei coaching a Hebrew speaker in a "Reverse-Dubbing Challenge" ("איך אומרים את הבועה הזו ביפנית?").
+
+MANGA BUBBLE CONTEXT:
+- Character Speaking: "${speakerNameHe || 'דמות מנגה'}" ${speakerPersona ? `(${speakerPersona})` : ''}
+- Original Translated Bubble Text: "${originalText}"
+- Hebrew Meaning: "${translationHebrew}"
+- Authentic Manga Japanese Reconstruction: "${referenceJapanese}"
+
+LEARNER'S SPOKEN / TYPED JAPANESE ATTEMPT:
+"${userSentenceJapanese}"
+
+KUROMOJI TOKENS OF LEARNER'S ATTEMPT:
+${JSON.stringify(kuromojiTokens)}
+
+EVALUATION RULES:
+1. Accept valid Hiragana/Kanji variations (SpeechRecognition often outputs Hiragana or alternative Kanji). Do NOT penalize Hiragana vs Kanji spelling!
+2. Accept BOTH polite Japanese (です/ます) and casual/Shonen Japanese as "is_correct": true IF the learner conveyed the core meaning of the bubble accurately with understandable grammar (grammar_score >= 68).
+3. "grammar_score": 0..100 for particle usage, verb/adjective conjugation, and core meaning accuracy.
+4. "naturalness_score": 0..100 for how natural and manga-authentic it sounds in context.
+5. "character_vibe_match": A short, fun Hebrew badge (3-7 words) describing how well the tone fits the character (e.g., "בול באנרגיית שונן של הדמות! 🔥" or "משמעות מדויקת! מנומס מעט יחסית לקרב").
+6. "corrected_user_sentence": Minimal grammatical fix of the learner's own Japanese phrasing (keep identical if already correct).
+7. "feedback_hebrew": Encouraging, specific Hebrew Sensei coaching (2-4 sentences): praise what worked, explain any grammar/particle fixes, and highlight the cool manga nuance in "${referenceJapanese}" (such as pronouns, contractions, or sentence-ending particles).
+8. "manga_native_line": "${referenceJapanese}"
+9. "manga_native_reading": Full Hiragana reading of "${referenceJapanese}".
+`;
+
+  try {
+    const result = await executeWithRetry(() => model.generateContent(prompt));
+    const parsed = JSON.parse(cleanJsonText(result.response.text()));
+
+    const grammarScore = clampScore(parsed.grammar_score);
+    const naturalnessScore = clampScore(parsed.naturalness_score);
+    const isCorrect = Boolean(parsed.is_correct && grammarScore >= 68);
+
+    return {
+      is_correct: isCorrect,
+      grammar_score: grammarScore,
+      naturalness_score: naturalnessScore,
+      character_vibe_match: String(parsed.character_vibe_match || '').trim(),
+      corrected_user_sentence: String(
+        parsed.corrected_user_sentence || userSentenceJapanese
+      ).trim(),
+      feedback_hebrew: String(parsed.feedback_hebrew || '').trim(),
+      manga_native_line: String(parsed.manga_native_line || referenceJapanese).trim(),
+      manga_native_reading: kata2Hira(parsed.manga_native_reading || ''),
+    };
+  } catch (error) {
+    console.error('Error evaluating manga dubbing attempt:', error);
+    throw new Error('Failed to evaluate manga dubbing attempt with Gemini AI');
+  }
+}
+
 module.exports = {
   generateJapaneseStory,
   generateMangaDialogue,
@@ -960,10 +1344,14 @@ module.exports = {
   translateJapaneseWords,
   generateTrainerChallenge,
   evaluateTrainerOutput,
+  analyzeMangaPageVision,
+  evaluateMangaDubAttempt,
   STORY_RESPONSE_SCHEMA,
   DIALOGUE_RESPONSE_SCHEMA,
   ANALYZE_PASSAGE_SCHEMA,
   WORD_ANALYSIS_SCHEMA,
   TRAINER_CHALLENGE_SCHEMA,
   TRAINER_EVAL_SCHEMA,
+  MANGA_PAGE_VISION_SCHEMA,
+  MANGA_DUB_EVAL_SCHEMA,
 };
