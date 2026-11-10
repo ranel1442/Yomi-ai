@@ -1,2 +1,112 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: var(--font-rubik), var(--font-noto-sans-jp), 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', ui-sans-serif, system-ui, sans-serif;
+  --font-jp: var(--font-noto-sans-jp), 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', var(--font-rubik), ui-sans-serif, system-ui, sans-serif;
+  --font-japanese-sans: var(--font-noto-sans-jp), 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', var(--font-rubik), ui-sans-serif, system-ui, sans-serif;
+  --font-japanese-serif: var(--font-noto-serif-jp), 'Noto Serif JP', var(--font-noto-sans-jp), 'Noto Sans JP', ui-serif, Georgia, serif;
+}
+
+:root {
+  --surface-bg: #f8fafc;
+  --surface-card: #ffffff;
+  --surface-border: #e2e8f0;
+  --brand-primary: #6366f1;
+  --brand-accent: #06b6d4;
+}
+
+.dark {
+  --surface-bg: #0b1120;
+  --surface-card: #111827;
+  --surface-elevated: #1e293b;
+  --surface-border: rgba(148, 163, 184, 0.14);
+  --brand-primary: #6366f1;
+  --brand-accent: #06b6d4;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Dedicated crystal-clear Japanese typography classes */
+.font-jp,
+.font-japanese-sans {
+  font-family: var(--font-noto-sans-jp), 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', var(--font-rubik), sans-serif;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "palt" 1;
+  letter-spacing: 0.03em;
+}
+
+.font-japanese-serif {
+  font-family: var(--font-noto-serif-jp), 'Noto Serif JP', var(--font-noto-sans-jp), 'Noto Sans JP', serif;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "palt" 1;
+  letter-spacing: 0.03em;
+}
+
+/* Any LTR container holding Japanese text gets anti-blur & Noto Sans JP priority */
+[dir="ltr"] {
+  font-family: var(--font-noto-sans-jp), 'Noto Sans JP', var(--font-rubik), 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', sans-serif;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+ruby {
+  ruby-position: over;
+  ruby-align: center;
+  font-synthesis: none;
+  font-family: var(--font-noto-sans-jp), 'Noto Sans JP', sans-serif;
+}
+
+rt {
+  font-family: var(--font-noto-sans-jp), 'Noto Sans JP', sans-serif;
+  font-size: max(0.78rem, 12.5px) !important;
+  font-weight: 500;
+  color: #334155;
+  letter-spacing: 0.03em;
+  line-height: 1.3;
+  font-synthesis: none;
+}
+
+.dark rt {
+  color: #cbd5e1;
+}
+
+/* Subtle custom scrollbars for dark/light themes */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.55);
+}

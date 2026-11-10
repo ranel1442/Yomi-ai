@@ -13,6 +13,10 @@ const { generateAudio, assignCharacterVoices } = require('../services/audioServi
 const { getUserEntitlements } = require('../services/entitlementsService');
 const { scheduleReview, enrichCardWithSrs } = require('../services/srsService');
 const { getTokenizer, kata2Hira } = require('../services/morphologyService');
+const {
+  extractPagesFromUploadedFiles,
+  decodeOriginalFilename,
+} = require('../services/documentParserService');
 
 const MANGA_BUCKET = 'manga_pages';
 const MAX_PAGES_PER_CHAPTER = 35;
@@ -20,14 +24,9 @@ const MAX_PAGES_PER_CHAPTER = 35;
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 15 * 1024 * 1024, // 15MB per manga page image
+    fileSize: 65 * 1024 * 1024, // 65MB to support full multi-page PDF / PPTX / ODP chapters
     files: MAX_PAGES_PER_CHAPTER,
   },
-});
-
-const naturalCollator = new Intl.Collator(undefined, {
-  numeric: true,
-  sensitivity: 'base',
 });
 
 let mangaBucketVerified = false;
@@ -36,6 +35,8 @@ let mangaBucketVerified = false;
 const inMemoryChaptersMap = new Map();
 // Per-chapter async mutex so concurrent page updates never clobber JSONB
 const chapterWriteLocks = new Map();
+// Deduplicates concurrent Page Vision requests (e.g., server auto-queue of Page 1 + client request)
+const inFlightPageAnalyses = new Map();
 
 function rememberChapterInMemory(chapter) {
   if (!chapter || !chapter.id) return;
@@ -68,25 +69,16 @@ async function withChapterLock(chapterId, taskFn) {
   }
 }
 
-function decodeOriginalFilename(rawName = '') {
-  try {
-    const decoded = Buffer.from(rawName, 'latin1').toString('utf8');
-    if (decoded.includes('\uFFFD')) return rawName;
-    return decoded;
-  } catch {
-    return rawName;
-  }
-}
-
 function getSafeImageExt(file) {
   const mime = String(file?.mimetype || '').toLowerCase();
+  if (mime.includes('svg')) return 'svg';
   if (mime.includes('png')) return 'png';
   if (mime.includes('webp')) return 'webp';
   if (mime.includes('gif')) return 'gif';
   const extMatch = String(file?.originalname || '').match(/\.([a-zA-Z0-9]{2,5})$/);
   if (extMatch) {
     const ext = extMatch[1].toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) return ext;
+    if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(ext)) return ext;
   }
   return 'jpg';
 }
@@ -213,203 +205,62 @@ async function downloadPageImageBuffer(page) {
 }
 
 // ============================================================================
-// POST /api/manga/chapters — Upload sorted manga pages & initialize chapter
+// Internal Helper: Execute Vision/Script Analysis + Neural2 TTS for a Page
+// Deduplicates concurrent requests for the same (chapterId, pageNumber)
 // ============================================================================
-router.post(
-  '/chapters',
-  (req, res, next) => {
-    upload.array('pages', MAX_PAGES_PER_CHAPTER)(req, res, (multerErr) => {
-      if (multerErr) {
-        return res.status(400).json({
-          error: `Upload error: ${multerErr.message}`,
-        });
-      }
-      next();
-    });
-  },
-  async (req, res) => {
-    try {
-      const files = Array.isArray(req.files) ? req.files : [];
-      const {
-        title = '',
-        sourceLanguage = 'he_en_translated',
-        jlptTarget = 'N4',
-        userId,
-      } = req.body || {};
-
-    if (!userId || userId === 'anonymous') {
-      return res.status(400).json({ error: 'Authentication (userId) is required' });
-    }
-
-    if (files.length === 0) {
-      return res.status(400).json({ error: 'At least 1 manga page image is required' });
-    }
-
-    const resolvedSourceLang =
-      sourceLanguage === 'ja_raw' ? 'ja_raw' : 'he_en_translated';
-    const validLevels = new Set(['N5', 'N4', 'N3', 'N2', 'N1']);
-    const resolvedJlpt = validLevels.has(jlptTarget) ? jlptTarget : 'N4';
-
-    const { isPro, isAdmin } = await getUserEntitlements(userId);
-    if (!isAdmin && !isPro) {
-      if (files.length > 5) {
-        return res.status(403).json({
-          error: 'Free users can upload up to 5 manga pages per chapter. Upgrade to PRO for full chapters.',
-        });
-      }
-    }
-
-    // Sort page files naturally by filename (e.g., c1196_p01..p16 or 1.jpg..16.jpg)
-    const sortedFiles = [...files].sort((a, b) =>
-      naturalCollator.compare(
-        decodeOriginalFilename(a.originalname),
-        decodeOriginalFilename(b.originalname)
-      )
-    );
-
-    const chapterId = crypto.randomUUID();
-    const cleanTitle =
-      String(title || '').trim() ||
-      decodeOriginalFilename(sortedFiles[0].originalname).replace(/\.[^/.]+$/, '') ||
-      'פרק מנגה חדש';
-
-    await ensureMangaBucket();
-
-    const pages = await mapWithConcurrency(sortedFiles, 5, async (file, index) => {
-      const pageNumber = index + 1;
-      const ext = getSafeImageExt(file);
-      const mimeType = file.mimetype || (ext === 'png' ? 'image/png' : 'image/jpeg');
-      const padded = String(pageNumber).padStart(3, '0');
-      const storagePath = `${userId}/${chapterId}/page_${padded}.${ext}`;
-      const displayFileName = decodeOriginalFilename(file.originalname);
-
-      let imageUrl = null;
-      let storedPath = storagePath;
-
-      try {
-        const { error: upErr } = await supabase.storage
-          .from(MANGA_BUCKET)
-          .upload(storagePath, file.buffer, {
-            contentType: mimeType,
-            upsert: true,
-          });
-
-        if (upErr) throw upErr;
-
-        const { data: pubData } = supabase.storage
-          .from(MANGA_BUCKET)
-          .getPublicUrl(storagePath);
-        imageUrl = pubData.publicUrl;
-      } catch (storageErr) {
-        console.warn(
-          `[MangaRoute] Storage upload fallback to data URI on page ${pageNumber}:`,
-          storageErr.message
-        );
-        storedPath = null;
-        imageUrl = `data:${mimeType};base64,${file.buffer.toString('base64')}`;
-      }
-
-      return {
-        page_number: pageNumber,
-        file_name: displayFileName,
-        storage_path: storedPath,
-        mime_type: mimeType,
-        image_url: imageUrl,
-        status: 'pending',
-        page_summary_hebrew: '',
-        bubbles: [],
-        sfx_list: [],
-      };
-    });
-
-    const chapterRecord = {
-      id: chapterId,
-      user_id: userId,
-      title: cleanTitle,
-      source_language: resolvedSourceLang,
-      jlpt_target: resolvedJlpt,
-      total_pages: pages.length,
-      characters: [],
-      pages,
-    };
-
-    const { data, error } = await supabase
-      .from('manga_chapters')
-      .insert([chapterRecord])
-      .select()
-      .single();
-
-    if (error) {
-      console.warn(
-        '[MangaRoute] Could not persist to `manga_chapters` (run migration 005):',
-        error.message
-      );
-      const fallbackChapter = {
-        ...chapterRecord,
-        created_at: new Date().toISOString(),
-      };
-      rememberChapterInMemory(fallbackChapter);
-      return res.status(201).json({
-        persisted: false,
-        chapter: fallbackChapter,
-      });
-    }
-
-    rememberChapterInMemory(data);
-    return res.status(201).json({
-      persisted: true,
-      chapter: data,
-    });
-  } catch (error) {
-    console.error('Error in POST /api/manga/chapters:', error);
-    return res.status(500).json({
-      error: 'Failed to create manga chapter',
-      details: error.message,
-    });
-  }
-});
-
-// ============================================================================
-// POST /api/manga/chapters/:id/analyze-page/:pageNumber — Vision + TTS + Save
-// ============================================================================
-router.post('/chapters/:id/analyze-page/:pageNumber', async (req, res) => {
-  const { id: chapterId, pageNumber: rawPageNumber } = req.params;
-  const targetPageNum = Number(rawPageNumber);
-  const forceReanalyze = Boolean(req.body?.force);
-
-  if (!chapterId || !Number.isInteger(targetPageNum) || targetPageNum < 1) {
-    return res.status(400).json({ error: 'Valid chapter id and pageNumber are required' });
+async function executePageVisionAnalysis(chapterId, targetPageNum, forceReanalyze = false) {
+  const inflightKey = `${chapterId}:${targetPageNum}`;
+  if (!forceReanalyze && inFlightPageAnalyses.has(inflightKey)) {
+    return inFlightPageAnalyses.get(inflightKey);
   }
 
-  try {
+  const jobPromise = (async () => {
     const { chapter: initialChapter } = await fetchChapterById(chapterId);
     if (!initialChapter) {
-      return res.status(404).json({ error: 'Manga chapter not found' });
+      const notFoundErr = new Error('Manga chapter not found');
+      notFoundErr.statusCode = 404;
+      throw notFoundErr;
     }
 
     const existingPage = (initialChapter.pages || []).find(
       (p) => Number(p.page_number) === targetPageNum
     );
     if (!existingPage) {
-      return res.status(404).json({ error: `Page ${targetPageNum} not found in chapter` });
+      const notFoundErr = new Error(`Page ${targetPageNum} not found in chapter`);
+      notFoundErr.statusCode = 404;
+      throw notFoundErr;
     }
 
     if (existingPage.status === 'ready' && !forceReanalyze) {
-      return res.status(200).json({
+      return {
         chapterId,
         cached: true,
         page: existingPage,
         characters: initialChapter.characters || [],
-      });
+      };
     }
 
-    // 1. Download image buffer
-    const imageBuffer = await downloadPageImageBuffer(existingPage);
+    // 1. Download image buffer (unless pure SVG script page where script_text is primary)
+    let imageBuffer = null;
+    const isSvgPage =
+      existingPage.mime_type === 'image/svg+xml' ||
+      (existingPage.storage_path && existingPage.storage_path.endsWith('.svg'));
 
-    // 2. Run Gemini Multimodal Vision + Kuromoji enrichment
+    if (!isSvgPage) {
+      try {
+        imageBuffer = await downloadPageImageBuffer(existingPage);
+      } catch (dlErr) {
+        if (!existingPage.script_text) {
+          throw dlErr;
+        }
+      }
+    }
+
+    // 2. Run Gemini Multimodal Vision / Script Analysis + Kuromoji enrichment
     const visionResult = await analyzeMangaPageVision({
       imageBuffer,
       mimeType: existingPage.mime_type || 'image/jpeg',
+      scriptText: existingPage.script_text || null,
       sourceLanguage: initialChapter.source_language,
       jlptTarget: initialChapter.jlpt_target,
       knownCharacters: initialChapter.characters || [],
@@ -528,13 +379,228 @@ router.post('/chapters/:id/analyze-page/:pageNumber', async (req, res) => {
       return { page: updatedPage, characters: mergedCharacters };
     });
 
-    return res.status(200).json({
+    return {
       chapterId,
       cached: false,
       page: savedResult.page,
       characters: savedResult.characters,
+    };
+  })();
+
+  inFlightPageAnalyses.set(inflightKey, jobPromise);
+  try {
+    return await jobPromise;
+  } finally {
+    inFlightPageAnalyses.delete(inflightKey);
+  }
+}
+
+// ============================================================================
+// POST /api/manga/chapters — Upload images OR (.pdf, .pptx, .odp, .txt) documents
+// ============================================================================
+router.post(
+  '/chapters',
+  (req, res, next) => {
+    upload.any()(req, res, (multerErr) => {
+      if (multerErr) {
+        return res.status(400).json({
+          error: `Upload error: ${multerErr.message}`,
+        });
+      }
+      next();
     });
+  },
+  async (req, res) => {
+    try {
+      const files = Array.isArray(req.files) ? req.files : [];
+      const {
+        title = '',
+        sourceLanguage = 'he_en_translated',
+        jlptTarget = 'N4',
+        userId,
+      } = req.body || {};
+
+      if (!userId || userId === 'anonymous') {
+        return res.status(400).json({ error: 'Authentication (userId) is required' });
+      }
+
+      if (files.length === 0) {
+        return res.status(400).json({
+          error: 'At least 1 manga page image or document (.pdf, .pptx, .odp, .txt) is required',
+        });
+      }
+
+      const resolvedSourceLang =
+        sourceLanguage === 'ja_raw' ? 'ja_raw' : 'he_en_translated';
+      const validLevels = new Set(['N5', 'N4', 'N3', 'N2', 'N1']);
+      const resolvedJlpt = validLevels.has(jlptTarget) ? jlptTarget : 'N4';
+
+      const { isPro, isAdmin } = await getUserEntitlements(userId);
+      const maxAllowedPages = isAdmin || isPro ? MAX_PAGES_PER_CHAPTER : 5;
+
+      // Extract sequential pages from images, PDF, PPTX, ODP, or TXT files
+      const { pages: extractedPages, detectedFormat } =
+        await extractPagesFromUploadedFiles(files, maxAllowedPages);
+
+      if (!extractedPages || extractedPages.length === 0) {
+        return res.status(400).json({
+          error: 'Could not extract any readable pages from the uploaded file(s)',
+        });
+      }
+
+      const chapterId = crypto.randomUUID();
+      const firstOriginalName = decodeOriginalFilename(files[0].originalname);
+      const cleanTitle =
+        String(title || '').trim() ||
+        firstOriginalName.replace(/\.[^/.]+$/, '') ||
+        'פרק מנגה חדש';
+
+      await ensureMangaBucket();
+
+      const pages = await mapWithConcurrency(
+        extractedPages,
+        5,
+        async (extracted, index) => {
+          const pageNumber = index + 1;
+          const ext = getSafeImageExt({
+            mimetype: extracted.mimeType,
+            originalname: extracted.fileName,
+          });
+          const mimeType =
+            extracted.mimeType ||
+            (ext === 'svg'
+              ? 'image/svg+xml'
+              : ext === 'png'
+              ? 'image/png'
+              : 'image/jpeg');
+          const padded = String(pageNumber).padStart(3, '0');
+          const storagePath = `${userId}/${chapterId}/page_${padded}.${ext}`;
+          const displayFileName =
+            extracted.fileName || `page_${padded}.${ext}`;
+
+          let imageUrl = null;
+          let storedPath = storagePath;
+
+          try {
+            const { error: upErr } = await supabase.storage
+              .from(MANGA_BUCKET)
+              .upload(storagePath, extracted.buffer, {
+                contentType: mimeType,
+                upsert: true,
+              });
+
+            if (upErr) throw upErr;
+
+            const { data: pubData } = supabase.storage
+              .from(MANGA_BUCKET)
+              .getPublicUrl(storagePath);
+            imageUrl = pubData.publicUrl;
+          } catch (storageErr) {
+            console.warn(
+              `[MangaRoute] Storage upload fallback to data URI on page ${pageNumber}:`,
+              storageErr.message
+            );
+            storedPath = null;
+            imageUrl = `data:${mimeType};base64,${extracted.buffer.toString('base64')}`;
+          }
+
+          return {
+            page_number: pageNumber,
+            file_name: displayFileName,
+            storage_path: storedPath,
+            mime_type: mimeType,
+            image_url: imageUrl,
+            script_text: extracted.scriptText || null,
+            status: 'pending',
+            page_summary_hebrew: '',
+            bubbles: [],
+            sfx_list: [],
+          };
+        }
+      );
+
+      const chapterRecord = {
+        id: chapterId,
+        user_id: userId,
+        title: cleanTitle,
+        source_language: resolvedSourceLang,
+        jlpt_target: resolvedJlpt,
+        total_pages: pages.length,
+        characters: [],
+        pages,
+      };
+
+      const { data, error } = await supabase
+        .from('manga_chapters')
+        .insert([chapterRecord])
+        .select()
+        .single();
+
+      let finalChapter = data;
+      let persisted = true;
+
+      if (error) {
+        console.warn(
+          '[MangaRoute] Could not persist to `manga_chapters` (run migration 005):',
+          error.message
+        );
+        persisted = false;
+        finalChapter = {
+          ...chapterRecord,
+          created_at: new Date().toISOString(),
+        };
+      }
+
+      rememberChapterInMemory(finalChapter);
+
+      // Queue Page 1 for immediate Vision/Script analysis in the background
+      executePageVisionAnalysis(chapterId, 1, false).catch((bgErr) => {
+        console.warn(
+          `[MangaRoute] Auto-queued Page 1 vision notice (${chapterId}):`,
+          bgErr.message
+        );
+      });
+
+      return res.status(201).json({
+        persisted,
+        sourceFormat: detectedFormat,
+        chapter: finalChapter,
+      });
+    } catch (error) {
+      console.error('Error in POST /api/manga/chapters:', error);
+      return res.status(500).json({
+        error: 'Failed to create manga chapter',
+        details: error.message,
+      });
+    }
+  }
+);
+
+// ============================================================================
+// POST /api/manga/chapters/:id/analyze-page/:pageNumber — Vision + TTS + Save
+// ============================================================================
+router.post('/chapters/:id/analyze-page/:pageNumber', async (req, res) => {
+  const { id: chapterId, pageNumber: rawPageNumber } = req.params;
+  const targetPageNum = Number(rawPageNumber);
+  const forceReanalyze = Boolean(req.body?.force);
+
+  if (!chapterId || !Number.isInteger(targetPageNum) || targetPageNum < 1) {
+    return res.status(400).json({ error: 'Valid chapter id and pageNumber are required' });
+  }
+
+  try {
+    const result = await executePageVisionAnalysis(
+      chapterId,
+      targetPageNum,
+      forceReanalyze
+    );
+    return res.status(200).json(result);
   } catch (error) {
+    const statusCode = error.statusCode || 500;
+    if (statusCode === 404) {
+      return res.status(404).json({ error: error.message });
+    }
+
     console.error(
       `Error in POST /api/manga/chapters/${chapterId}/analyze-page/${targetPageNum}:`,
       error

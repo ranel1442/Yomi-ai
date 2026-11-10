@@ -1208,3 +1208,4 @@ export const CORE_JLPT_KANJI: KanjiDojoEntry[] = [
     ],
   },
 ];
+

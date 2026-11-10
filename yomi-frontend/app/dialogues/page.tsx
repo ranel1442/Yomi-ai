@@ -80,9 +80,9 @@ const STYLE_OPTIONS: Array<{
       'שותפים לקרב שמגלים שהאויב חזק פי עשרה ממה שחשבו',
       'אימון לילי על שליטה באאורה (Aura) בפסגת הר מושלג',
     ],
-    icon: <Swords size={20} />,
+    icon: <Swords size={20} className="text-indigo-600 dark:text-indigo-400" />,
     accentClass:
-      'border-orange-300 dark:border-orange-700/70 bg-orange-50/70 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300',
+      'border-indigo-500 dark:border-indigo-400 bg-indigo-50/50 dark:bg-[#1e293b] text-slate-900 dark:text-slate-100 ring-2 ring-indigo-500/20',
   },
   {
     id: 'casual_tameguchi',
@@ -94,9 +94,9 @@ const STYLE_OPTIONS: Array<{
       'שיחה על אנימה חדשה שאחד החברים ספיילר בטעות',
       'תכנון טיול ספונטני לסוף שבוע בקיוטו כשהתקציב נמוך',
     ],
-    icon: <Users size={20} />,
+    icon: <Users size={20} className="text-cyan-600 dark:text-cyan-400" />,
     accentClass:
-      'border-purple-300 dark:border-purple-700/70 bg-purple-50/70 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300',
+      'border-cyan-500 dark:border-cyan-400 bg-cyan-50/50 dark:bg-[#1e293b] text-slate-900 dark:text-slate-100 ring-2 ring-cyan-500/20',
   },
   {
     id: 'slice_of_life',
@@ -108,9 +108,9 @@ const STYLE_OPTIONS: Array<{
       'הכנות לפסטיבל התרבות השנתי עם חברי המועדון',
       'ניסיון להכין בנטו ביתי בפעם הראשונה והתוצאה המפתיעה',
     ],
-    icon: <Coffee size={20} />,
+    icon: <Coffee size={20} className="text-sky-600 dark:text-sky-400" />,
     accentClass:
-      'border-sky-300 dark:border-sky-700/70 bg-sky-50/70 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300',
+      'border-sky-500 dark:border-sky-400 bg-sky-50/50 dark:bg-[#1e293b] text-slate-900 dark:text-slate-100 ring-2 ring-sky-500/20',
   },
   {
     id: 'polite_daily',
@@ -122,40 +122,40 @@ const STYLE_OPTIONS: Array<{
       'שאלת עובד תחנת שינג׳וקו איך להגיע לרציף הנכון של השינקנסן',
       'חיפוש ספר מנגה נדיר בחנות ספרים באקיהברה',
     ],
-    icon: <Building2 size={20} />,
+    icon: <Building2 size={20} className="text-emerald-600 dark:text-emerald-400" />,
     accentClass:
-      'border-emerald-300 dark:border-emerald-700/70 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300',
+      'border-emerald-500 dark:border-emerald-400 bg-emerald-50/50 dark:bg-[#1e293b] text-slate-900 dark:text-slate-100 ring-2 ring-emerald-500/20',
   },
 ];
 
 const CHAR_PALETTES = [
   {
-    avatarBg: 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white',
-    bubbleBorder: 'border-blue-200 dark:border-blue-800/60',
-    bubbleBg: 'bg-blue-50/50 dark:bg-blue-950/25',
-    nameText: 'text-blue-700 dark:text-blue-300',
-    pillBg: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
+    avatarBg: 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white',
+    bubbleBorder: 'border-slate-200 dark:border-slate-700/80',
+    bubbleBg: 'bg-slate-50/90 dark:bg-[#1e293b]/90',
+    nameText: 'text-indigo-700 dark:text-indigo-300',
+    pillBg: 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300',
   },
   {
-    avatarBg: 'bg-gradient-to-br from-rose-500 to-pink-600 text-white',
-    bubbleBorder: 'border-rose-200 dark:border-rose-800/60',
-    bubbleBg: 'bg-rose-50/50 dark:bg-rose-950/25',
-    nameText: 'text-rose-700 dark:text-rose-300',
-    pillBg: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300',
+    avatarBg: 'bg-gradient-to-br from-cyan-500 to-teal-600 text-white',
+    bubbleBorder: 'border-slate-200 dark:border-slate-700/80',
+    bubbleBg: 'bg-slate-50/90 dark:bg-[#1e293b]/90',
+    nameText: 'text-cyan-700 dark:text-cyan-300',
+    pillBg: 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300',
   },
   {
     avatarBg: 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white',
-    bubbleBorder: 'border-emerald-200 dark:border-emerald-800/60',
-    bubbleBg: 'bg-emerald-50/50 dark:bg-emerald-950/25',
+    bubbleBorder: 'border-slate-200 dark:border-slate-700/80',
+    bubbleBg: 'bg-slate-50/90 dark:bg-[#1e293b]/90',
     nameText: 'text-emerald-700 dark:text-emerald-300',
-    pillBg: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
+    pillBg: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300',
   },
   {
-    avatarBg: 'bg-gradient-to-br from-amber-500 to-orange-600 text-white',
-    bubbleBorder: 'border-amber-200 dark:border-amber-800/60',
-    bubbleBg: 'bg-amber-50/50 dark:bg-amber-950/25',
-    nameText: 'text-amber-700 dark:text-amber-300',
-    pillBg: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
+    avatarBg: 'bg-gradient-to-br from-violet-500 to-indigo-600 text-white',
+    bubbleBorder: 'border-slate-200 dark:border-slate-700/80',
+    bubbleBg: 'bg-slate-50/90 dark:bg-[#1e293b]/90',
+    nameText: 'text-violet-700 dark:text-violet-300',
+    pillBg: 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300',
   },
 ];
 
@@ -776,10 +776,10 @@ export default function DialoguesPage() {
         className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 rounded-3xl p-6 md:p-8 shadow-lg mb-10"
       >
         {/* 4 Style Selector Cards */}
-        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">
+        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">
           1. בחר ז׳אנר ומשלב שפה (Register):
         </label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
           {STYLE_OPTIONS.map((opt) => {
             const active = selectedStyle === opt.id;
             return (
@@ -790,23 +790,30 @@ export default function DialoguesPage() {
                   setSelectedStyle(opt.id);
                   setTopic(opt.sampleTopics[0]);
                 }}
-                className={`text-right p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${
+                className={`text-right p-4 rounded-2xl border transition-all flex flex-col justify-between cursor-pointer ${
                   active
-                    ? `${opt.accentClass} shadow-sm scale-[1.01]`
-                    : 'border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-[#0B0F19]/50 hover:border-gray-300 dark:hover:border-gray-700 text-gray-700 dark:text-gray-300'
+                    ? `${opt.accentClass} shadow-md`
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#0b1120] hover:border-indigo-400/60 dark:hover:border-slate-700 text-slate-700 dark:text-slate-200'
                 }`}
               >
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="p-2 rounded-xl bg-white/80 dark:bg-gray-900/70 shadow-xs">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span className="p-2 rounded-xl bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-slate-800 shadow-xs shrink-0">
                       {opt.icon}
                     </span>
-                    <span className="text-[11px] font-mono opacity-80" dir="ltr">
+                    <span
+                      className="font-jp text-sm sm:text-[15px] font-medium tracking-wider px-2.5 py-1 rounded-xl bg-white dark:bg-[#0b1120] text-slate-900 dark:text-[#e0e7ff] border border-slate-200/90 dark:border-indigo-500/30 shadow-2xs"
+                      dir="ltr"
+                    >
                       {opt.subtitleJa}
                     </span>
                   </div>
-                  <div className="font-extrabold text-sm mb-1">{opt.titleHe}</div>
-                  <p className="text-xs opacity-80 leading-relaxed">{opt.descHe}</p>
+                  <div className="font-extrabold text-sm text-slate-900 dark:text-white mb-1">
+                    {opt.titleHe}
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {opt.descHe}
+                  </p>
                 </div>
               </button>
             );
@@ -908,7 +915,7 @@ export default function DialoguesPage() {
               </span>
             </div>
             <h2
-              className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-2"
+              className="font-jp text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2 tracking-[0.03em]"
               dir="ltr"
             >
               {activeDialogue.title_japanese}
@@ -954,16 +961,16 @@ export default function DialoguesPage() {
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div
-                        className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-lg shrink-0 shadow-sm ${meta?.palette.avatarBg}`}
+                        className={`font-jp w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-lg shrink-0 shadow-sm ${meta?.palette.avatarBg}`}
                       >
                         {char.name_ja.slice(0, 1)}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-black text-gray-900 dark:text-white" dir="ltr">
+                          <span className="font-jp font-bold text-base text-slate-900 dark:text-white" dir="ltr">
                             {char.name_ja}
                           </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
                             ({char.name_he})
                           </span>
                         </div>
@@ -1148,15 +1155,15 @@ export default function DialoguesPage() {
                     {/* Bubble Header: Speaker + Emotion + Line Audio + Sensei Toggle */}
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                       <div className="flex items-center gap-2">
-                        <span className={`font-black text-sm ${palette.nameText}`} dir="ltr">
+                        <span className={`font-jp font-bold text-base ${palette.nameText}`} dir="ltr">
                           {speaker?.name_ja}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
                           {speaker?.name_he}
                         </span>
                         {line.emotion && (
                           <span
-                            className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/80 dark:bg-gray-900/70 border border-gray-200/70 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-mono"
+                            className="text-xs px-2.5 py-0.5 rounded-full bg-white dark:bg-[#0b1120] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium"
                             dir="ltr"
                           >
                             {line.emotion}
@@ -1245,7 +1252,7 @@ export default function DialoguesPage() {
 
                     {/* Interactive Japanese Tokens with Smart SRS Furigana */}
                     <div
-                      className="leading-[3.2] text-gray-900 dark:text-gray-100 text-left"
+                      className="font-jp leading-[3.1] text-slate-900 dark:text-[#f8fafc] text-left tracking-[0.03em]"
                       dir="ltr"
                     >
                       {(line.words || []).map((word, wIdx) => {
@@ -1288,21 +1295,21 @@ export default function DialoguesPage() {
                           <span
                             key={wIdx}
                             onClick={() => !punct && openWordPopover(word, line, lineIdx, wIdx)}
-                            className={`group/tok inline-block px-0.5 rounded-lg transition-all ${
+                            className={`group/tok inline-block px-1 py-0.5 rounded-lg transition-all ${
                               punct ? 'cursor-default' : 'cursor-pointer'
                             } ${
                               isWordSpoken
-                                ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300 scale-105 font-bold'
+                                ? 'bg-indigo-500/25 text-indigo-700 dark:text-cyan-300 scale-105 font-bold'
                                 : isWordSelected
-                                ? 'bg-indigo-500/20 ring-2 ring-indigo-500/40'
+                                ? 'bg-indigo-500/20 ring-2 ring-indigo-500/50'
                                 : !punct
-                                ? 'hover:bg-black/5 dark:hover:bg-white/10'
+                                ? 'hover:bg-slate-200/70 dark:hover:bg-slate-800'
                                 : ''
                             }`}
                           >
-                            <ruby className="text-xl md:text-2xl flex flex-col items-center">
+                            <ruby className="font-jp text-xl md:text-2xl font-medium flex flex-col items-center">
                               <rt
-                                className={`text-[10px] md:text-xs font-normal text-gray-500 dark:text-gray-400 transition-opacity ${rtClass}`}
+                                className={`text-[13px] font-medium text-slate-600 dark:text-slate-300 transition-opacity ${rtClass}`}
                               >
                                 {hasKanjiReading ? word.reading : ' '}
                               </rt>
@@ -1359,35 +1366,37 @@ export default function DialoguesPage() {
             initial={{ opacity: 0, y: 40, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: 40, x: '-50%' }}
-            className="fixed bottom-5 left-1/2 bg-white/95 dark:bg-[#1E293B]/95 text-gray-900 dark:text-white p-6 rounded-3xl shadow-2xl w-[calc(100%-1.5rem)] max-w-md z-50 border border-gray-200 dark:border-gray-700 backdrop-blur-xl"
+            className="fixed bottom-5 left-1/2 bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white p-6 rounded-3xl shadow-2xl w-[calc(100%-1.5rem)] max-w-md z-50 border border-slate-200 dark:border-slate-700"
             dir="rtl"
           >
             <button
               onClick={() => setSelectedWordCtx(null)}
-              className="absolute top-4 left-4 text-gray-400 hover:text-gray-900 dark:hover:text-white p-1"
+              className="absolute top-4 left-4 text-slate-400 hover:text-slate-900 dark:hover:text-white p-1"
             >
               <X size={20} />
             </button>
 
             <div className="text-center mb-4">
-              <div className="text-sm text-blue-600 dark:text-blue-400 font-bold mb-1" dir="ltr">
+              <div className="font-jp text-base text-indigo-600 dark:text-cyan-400 font-semibold mb-1" dir="ltr">
                 {selectedWordCtx.word.reading}
               </div>
-              <div className="text-4xl font-black mb-2" dir="ltr">
+              <div className="font-jp text-4xl font-bold mb-2 tracking-[0.03em]" dir="ltr">
                 {selectedWordCtx.word.kanji}
               </div>
-              <div className="text-xl text-blue-600 dark:text-blue-400 font-extrabold">
+              <div className="text-xl text-indigo-600 dark:text-cyan-400 font-extrabold">
                 {selectedWordCtx.word.meaning}
               </div>
 
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
-                <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold">
+                <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-200 font-bold">
                   צורת מילון:{' '}
-                  <strong dir="ltr">{selectedWordCtx.word.lemma || selectedWordCtx.word.kanji}</strong>
+                  <strong className="font-jp text-sm font-semibold" dir="ltr">
+                    {selectedWordCtx.word.lemma || selectedWordCtx.word.kanji}
+                  </strong>
                 </span>
                 {selectedWordCtx.word.type && (
                   <span
-                    className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-[#0B0F19] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-mono"
+                    className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#0b1120] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-mono"
                     dir="ltr"
                   >
                     {selectedWordCtx.word.type}
@@ -1397,7 +1406,7 @@ export default function DialoguesPage() {
 
               {selectedWordCtx.word.conjugation_breakdown && (
                 <div
-                  className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs font-semibold"
+                  className="font-jp mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-sm font-medium"
                   dir="ltr"
                 >
                   <GitBranch size={13} />
@@ -1406,16 +1415,16 @@ export default function DialoguesPage() {
               )}
             </div>
 
-            <div className="mb-4 bg-gray-50 dark:bg-[#0B0F19]/90 border border-gray-200/80 dark:border-gray-800 rounded-2xl p-3 text-sm">
-              <div className="flex items-center gap-1 text-[11px] font-bold text-gray-400 mb-1">
+            <div className="mb-4 bg-slate-50 dark:bg-[#0b1120] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 text-sm">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400 mb-1">
                 <Quote size={11} />
                 <span>שורת ההקשר מהדיאלוג:</span>
               </div>
-              <div className="font-medium" dir="ltr">
+              <div className="font-jp text-base font-medium text-slate-900 dark:text-slate-100" dir="ltr">
                 {selectedWordCtx.sentenceJapanese}
               </div>
               {selectedWordCtx.sentenceHebrew && (
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 pt-1 border-t border-gray-200/60 dark:border-gray-800">
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
                   {selectedWordCtx.sentenceHebrew}
                 </div>
               )}

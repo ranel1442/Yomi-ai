@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap,
   Volume2,
@@ -534,7 +535,8 @@ export default function DojoPage() {
 
             {/* Section Switcher */}
             <div className="flex flex-wrap gap-2 bg-slate-950/60 p-1.5 rounded-2xl border border-slate-800 shrink-0">
-              <button
+              <motion.button
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveSection('charts')}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-extrabold transition-all cursor-pointer ${
                   activeSection === 'charts'
@@ -544,9 +546,10 @@ export default function DojoPage() {
               >
                 <BookOpen size={17} />
                 <span>לוחות קאנה (104)</span>
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveSection('drill')}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-extrabold transition-all cursor-pointer ${
                   activeSection === 'drill'
@@ -556,9 +559,10 @@ export default function DojoPage() {
               >
                 <Zap size={17} />
                 <span>תרגיל בזק (Speed Drill)</span>
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveSection('kanji')}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-extrabold transition-all cursor-pointer ${
                   activeSection === 'kanji'
@@ -568,11 +572,19 @@ export default function DojoPage() {
               >
                 <Sparkles size={17} />
                 <span>מטריצת קאנג׳י ({kanjiCounts.inSrs}/{kanjiCounts.total})</span>
-              </button>
+              </motion.button>
             </div>
           </div>
         </header>
 
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeSection}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+          >
         {/* =================================================================== */}
         {/* SECTION 1: INTERACTIVE HIRAGANA & KATAKANA CHARTS                   */}
         {/* =================================================================== */}
@@ -670,23 +682,24 @@ export default function DojoPage() {
                             const isPlaying = playingKey === `kana-${entry.id}`;
 
                             return (
-                              <button
+                              <motion.button
+                                whileTap={{ scale: 0.95 }}
                                 key={entry.id}
                                 onClick={() => handleSelectKanaTile(entry)}
                                 className={`h-16 sm:h-20 rounded-2xl border flex flex-col items-center justify-center transition-all cursor-pointer relative group ${
                                   isSelected
-                                    ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/25 scale-[1.02]'
-                                    : 'bg-gray-50 dark:bg-slate-900/80 hover:bg-blue-50 dark:hover:bg-slate-800 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-white'
+                                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-500/25 scale-[1.02]'
+                                    : 'bg-slate-50 dark:bg-slate-800/90 hover:bg-indigo-50 dark:hover:bg-slate-700/80 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100'
                                 }`}
                               >
-                                <span className="text-2xl sm:text-3xl font-black leading-none">
+                                <span className="font-japanese-serif text-2xl sm:text-3xl font-black leading-none">
                                   {glyph}
                                 </span>
                                 <span
                                   className={`text-[11px] font-bold mt-1 ${
                                     isSelected
-                                      ? 'text-blue-100'
-                                      : 'text-gray-500 dark:text-slate-400'
+                                      ? 'text-indigo-100'
+                                      : 'text-slate-500 dark:text-slate-400'
                                   }`}
                                 >
                                   {entry.romaji}
@@ -697,7 +710,7 @@ export default function DojoPage() {
                                     className="absolute top-1.5 right-1.5 animate-pulse text-amber-300"
                                   />
                                 )}
-                              </button>
+                              </motion.button>
                             );
                           })}
                         </div>
@@ -825,7 +838,7 @@ export default function DojoPage() {
             <aside className="lg:col-span-4 lg:sticky lg:top-28 bg-white dark:bg-[#111827] rounded-3xl p-6 border border-gray-200 dark:border-slate-800 shadow-lg space-y-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-16 h-16 rounded-2xl bg-blue-600/10 dark:bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-4xl font-black text-blue-600 dark:text-blue-400">
+                  <div className="font-japanese-serif w-16 h-16 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-4xl font-black text-indigo-600 dark:text-cyan-400">
                     {chartScript === 'hiragana' ? selectedKana.hiragana : selectedKana.katakana}
                   </div>
                   <div>
@@ -1592,7 +1605,10 @@ export default function DojoPage() {
             </aside>
           </div>
         )}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );
 }
+

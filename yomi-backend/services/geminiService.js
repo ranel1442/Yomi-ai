@@ -1061,9 +1061,11 @@ async function analyzeMangaPageVision({
   jlptTarget = 'N4',
   knownCharacters = [],
   chapterTitle = '',
+  scriptText = null,
 }) {
-  if (!imageBuffer || !Buffer.isBuffer(imageBuffer)) {
-    throw new Error('Valid imageBuffer is required for manga vision analysis');
+  const cleanScriptText = scriptText ? String(scriptText).trim() : '';
+  if (!cleanScriptText && (!imageBuffer || !Buffer.isBuffer(imageBuffer))) {
+    throw new Error('Valid imageBuffer or scriptText is required for manga page analysis');
   }
 
   const resolvedTrack =
@@ -1143,16 +1145,23 @@ PAGE SUMMARY:
 - If a splash/cover page has 0 speech bubbles, return an empty "bubbles": [] array and describe the visual splash artwork in "page_summary_hebrew" + any visible SFX in "sfx_list".
 `;
 
-  const imagePart = {
-    inlineData: {
-      data: imageBuffer.toString('base64'),
-      mimeType: mimeType || 'image/jpeg',
-    },
-  };
+  const scriptContextBlock = cleanScriptText
+    ? `\nRAW SCRIPT LINES FOR THIS CHAPTER PAGE (Convert each dialogue/narration line in order into a structured bubble!):\n"""\n${cleanScriptText}\n"""\n`
+    : '';
+
+  const contentParts = [`${prompt}${scriptContextBlock}`];
+  if (!cleanScriptText && imageBuffer && mimeType !== 'image/svg+xml') {
+    contentParts.push({
+      inlineData: {
+        data: imageBuffer.toString('base64'),
+        mimeType: mimeType || 'image/jpeg',
+      },
+    });
+  }
 
   try {
     const result = await executeWithRetry(() =>
-      model.generateContent([prompt, imagePart])
+      model.generateContent(contentParts)
     );
     const parsed = JSON.parse(cleanJsonText(result.response.text()));
 

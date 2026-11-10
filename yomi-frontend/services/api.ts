@@ -694,6 +694,7 @@ export interface MangaPageItem {
   storage_path?: string | null;
   mime_type?: string;
   image_url: string;
+  script_text?: string | null;
   status: MangaPageStatus;
   page_summary_hebrew?: string;
   bubbles: MangaSpeechBubble[];
@@ -743,7 +744,7 @@ export const createMangaChapter = async (payload: {
   jlptTarget: string;
   userId: string;
   files: File[];
-}): Promise<{ persisted: boolean; chapter: MangaChapter }> => {
+}): Promise<{ persisted: boolean; sourceFormat?: string; chapter: MangaChapter }> => {
   const formData = new FormData();
   formData.append('title', payload.title);
   formData.append('sourceLanguage', payload.sourceLanguage);
@@ -832,6 +833,8 @@ export interface AnalyticsSummaryResponse {
   userId: string;
   totalCards: number;
   dueNowCount: number;
+  currentStreak?: number;
+  longestStreak?: number;
   avgStability: number;
   avgDifficulty: number;
   fsrsBreakdown: {

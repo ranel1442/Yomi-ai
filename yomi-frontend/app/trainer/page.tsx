@@ -575,16 +575,16 @@ export default function ActiveTrainerPage() {
                       מילת המטרה שחובה לשלב במשפט:
                     </div>
                     <div className="flex flex-wrap items-baseline gap-2.5" dir="ltr">
-                      <span className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
+                      <span className="font-jp text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-[0.03em]">
                         {challenge.target_lemma || challenge.target_kanji}
                       </span>
                       {challenge.target_reading && (
-                        <span className="text-sm font-bold text-indigo-600 dark:text-indigo-300">
+                        <span className="font-jp text-base font-semibold text-indigo-600 dark:text-cyan-400">
                           ({challenge.target_reading})
                         </span>
                       )}
                     </div>
-                    <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mt-0.5">
+                    <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mt-0.5">
                       פירוש: {challenge.target_meaning_hebrew}
                     </div>
                   </div>
@@ -615,23 +615,23 @@ export default function ActiveTrainerPage() {
               <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                 {challenge.helper_vocab && challenge.helper_vocab.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold text-gray-400">מילות עזר (לחץ להוספה):</span>
+                    <span className="text-xs font-bold text-slate-400">מילות עזר (לחץ להוספה):</span>
                     {challenge.helper_vocab.map((hv, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={() => insertTextAtCursor(hv.japanese)}
-                        className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-[#0B0F19] border border-gray-200 dark:border-gray-700 hover:border-blue-400 text-xs flex items-center gap-1.5 transition-all"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-[#0b1120] border border-slate-200 dark:border-slate-700 hover:border-indigo-400 text-sm flex items-center gap-2 transition-all"
                       >
-                        <span className="font-black text-gray-900 dark:text-white" dir="ltr">
+                        <span className="font-jp font-semibold text-base text-slate-900 dark:text-white" dir="ltr">
                           {hv.japanese}
                         </span>
                         {hv.reading && hv.reading !== hv.japanese && (
-                          <span className="text-gray-400" dir="ltr">
+                          <span className="font-jp text-xs text-slate-500 dark:text-slate-400" dir="ltr">
                             [{hv.reading}]
                           </span>
                         )}
-                        <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                        <span className="text-indigo-600 dark:text-cyan-400 font-semibold text-xs">
                           {hv.meaning_hebrew}
                         </span>
                       </button>
@@ -682,10 +682,10 @@ export default function ActiveTrainerPage() {
                     rows={3}
                     dir="ltr"
                     placeholder="כתוב ביפנית כאן או לחץ על המיקרופון כדי לדבר..."
-                    className={`w-full p-4 rounded-2xl bg-gray-50 dark:bg-[#0B0F19] border-2 text-gray-900 dark:text-white text-xl md:text-2xl font-bold leading-relaxed focus:outline-none transition-all ${
+                    className={`font-jp w-full p-4 rounded-2xl bg-slate-50 dark:bg-[#0b1120] border-2 text-slate-900 dark:text-white text-xl md:text-2xl font-medium leading-[1.9] tracking-[0.03em] focus:outline-none transition-all ${
                       isListening
                         ? 'border-rose-500 ring-4 ring-rose-500/20'
-                        : 'border-gray-200 dark:border-gray-700 focus:border-blue-500'
+                        : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500'
                     }`}
                   />
 
@@ -723,13 +723,13 @@ export default function ActiveTrainerPage() {
                 )}
 
                 {/* Quick Japanese Particle & Punctuation Helper Bar */}
-                <div className="mt-3 flex flex-wrap items-center gap-1.5" dir="ltr">
+                <div className="mt-3 flex flex-wrap items-center gap-2" dir="ltr">
                   {QUICK_PARTICLES.map((p) => (
                     <button
                       key={p}
                       type="button"
                       onClick={() => insertTextAtCursor(p)}
-                      className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-gray-700 dark:text-gray-200 text-xs font-bold transition-colors"
+                      className="font-jp px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 text-base font-medium transition-colors"
                     >
                       {p}
                     </button>
@@ -879,12 +879,12 @@ export default function ActiveTrainerPage() {
                   {/* Corrected Version (if different from learner's input) */}
                   {evalResponse.evaluation.corrected_user_sentence &&
                     evalResponse.evaluation.corrected_user_sentence !== userSentence.trim() && (
-                      <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/60">
-                        <div className="text-xs font-bold text-blue-700 dark:text-blue-300 mb-1">
+                      <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-800/60">
+                        <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300 mb-1">
                           תיקון דקדוקי למשפט שכתבת:
                         </div>
                         <div
-                          className="text-lg md:text-xl font-black text-gray-900 dark:text-white"
+                          className="font-jp text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-[0.03em]"
                           dir="ltr"
                         >
                           {evalResponse.evaluation.corrected_user_sentence}
@@ -909,14 +909,14 @@ export default function ActiveTrainerPage() {
                       </div>
                       {evalResponse.evaluation.native_alternative_reading && (
                         <div
-                          className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-0.5"
+                          className="font-jp text-sm font-semibold text-indigo-600 dark:text-cyan-400 mb-1"
                           dir="ltr"
                         >
                           {evalResponse.evaluation.native_alternative_reading}
                         </div>
                       )}
                       <div
-                        className="text-xl md:text-2xl font-black text-gray-900 dark:text-white"
+                        className="font-jp text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-[0.03em]"
                         dir="ltr"
                       >
                         {evalResponse.evaluation.native_alternative}

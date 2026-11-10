@@ -37,6 +37,7 @@ import {
   X,
   Lock,
   ImagePlus,
+  FileText,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -187,6 +188,42 @@ function getScoreColor(score: number): string {
   return 'from-red-500 to-rose-600';
 }
 
+type SelectedUploadKind = 'image' | 'pdf' | 'pptx' | 'odp' | 'txt';
+
+function detectSelectedFileKind(file: File): SelectedUploadKind | null {
+  const name = (file.name || '').toLowerCase();
+  const mime = (file.type || '').toLowerCase();
+
+  if (name.endsWith('.pdf') || mime === 'application/pdf') return 'pdf';
+  if (
+    name.endsWith('.pptx') ||
+    mime ===
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  ) {
+    return 'pptx';
+  }
+  if (
+    name.endsWith('.odp') ||
+    mime === 'application/vnd.oasis.opendocument.presentation'
+  ) {
+    return 'odp';
+  }
+  if (name.endsWith('.txt') || mime === 'text/plain') return 'txt';
+  if (
+    mime.startsWith('image/') ||
+    /\.(jpe?g|png|webp|gif|bmp)$/i.test(name)
+  ) {
+    return 'image';
+  }
+  return null;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function MangaVisionStudioPage() {
   const { user, isPro, isAdmin, loading: authLoading } = useAuth();
   const { lookupWord, upsertCardInMap } = useVocabularyMap(user?.id);
@@ -203,7 +240,7 @@ export default function MangaVisionStudioPage() {
     useState<MangaSourceLanguage>('he_en_translated');
   const [jlptTarget, setJlptTarget] = useState<string>('N4');
   const [selectedFiles, setSelectedFiles] = useState<
-    Array<{ file: File; previewUrl: string }>
+    Array<{ file: File; previewUrl: string; kind: SelectedUploadKind }>
   >([]);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [isCreatingChapter, setIsCreatingChapter] = useState<boolean>(false);
@@ -333,7 +370,9 @@ export default function MangaVisionStudioPage() {
   // Clean up object URLs on unmount
   useEffect(() => {
     return () => {
-      selectedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      selectedFiles.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -395,23 +434,35 @@ export default function MangaVisionStudioPage() {
   }, [activeChapter, showUploaderPanel]);
 
   // ============================================================================
-  // File Selection & Natural Sorting (`c1196_p01` .. `p16`)
+  // File Selection & Natural Sorting (`c1196_p01`..`p16` OR `.pdf`, `.pptx`, `.odp`, `.txt`)
   // ============================================================================
   const addFilesToSelection = useCallback(
     (incomingFileList: FileList | File[]) => {
-      const rawArr = Array.from(incomingFileList).filter((f) =>
-        f.type.startsWith('image/')
-      );
-      if (rawArr.length === 0) return;
+      const validIncoming: Array<{
+        file: File;
+        previewUrl: string;
+        kind: SelectedUploadKind;
+      }> = [];
+
+      for (const file of Array.from(incomingFileList)) {
+        const kind = detectSelectedFileKind(file);
+        if (!kind) continue;
+        validIncoming.push({
+          file,
+          kind,
+          previewUrl: kind === 'image' ? URL.createObjectURL(file) : '',
+        });
+      }
+
+      if (validIncoming.length === 0) {
+        setUploadError(
+          'קובץ לא נתמך. ניתן להעלות תמונות (JPG/PNG/WEBP), קובץ PDF, מצגת PowerPoint (.pptx / .odp) או קובץ טקסט (.txt).'
+        );
+        return;
+      }
 
       setSelectedFiles((prev) => {
-        const merged = [
-          ...prev,
-          ...rawArr.map((file) => ({
-            file,
-            previewUrl: URL.createObjectURL(file),
-          })),
-        ]
+        const merged = [...prev, ...validIncoming]
           .slice(0, 35)
           .sort((a, b) => naturalCollator.compare(a.file.name, b.file.name));
 
@@ -423,6 +474,8 @@ export default function MangaVisionStudioPage() {
             .trim();
           if (cleanedPrefix) {
             setChapterTitle(cleanedPrefix);
+          } else if (sampleName.trim()) {
+            setChapterTitle(sampleName.trim());
           }
         }
         return merged;
@@ -435,10 +488,15 @@ export default function MangaVisionStudioPage() {
   const removeSelectedFile = (idxToRemove: number) => {
     setSelectedFiles((prev) => {
       const target = prev[idxToRemove];
-      if (target) URL.revokeObjectURL(target.previewUrl);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((_, i) => i !== idxToRemove);
     });
   };
+
+  const hasDocumentSelected = useMemo(
+    () => selectedFiles.some((item) => item.kind !== 'image'),
+    [selectedFiles]
+  );
 
   // ============================================================================
   // Smart Sequential Vision Queue (`Page 1` immediately -> `Page 2..N` background)
@@ -571,7 +629,9 @@ export default function MangaVisionStudioPage() {
       return;
     }
     if (selectedFiles.length === 0) {
-      setUploadError('בחר לפחות תמונת עמוד מנגה אחת.');
+      setUploadError(
+        'בחר לפחות קובץ מנגה אחד (תמונות, קובץ PDF, מצגת PowerPoint או קובץ טקסט).'
+      );
       return;
     }
 
@@ -592,7 +652,9 @@ export default function MangaVisionStudioPage() {
       });
 
       // Clean up local blob previews
-      selectedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      selectedFiles.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
       setSelectedFiles([]);
 
       activeChapterRef.current = chapter;
@@ -1279,7 +1341,7 @@ export default function MangaVisionStudioPage() {
               </div>
             </div>
 
-            {/* Drag & Drop Multi-Image Zone */}
+            {/* Drag & Drop Multi-Format Zone (Images, PDF, PPTX, ODP, TXT) */}
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -1303,7 +1365,7 @@ export default function MangaVisionStudioPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.pdf,.pptx,.odp,.txt,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.oasis.opendocument.presentation,text/plain"
                 multiple
                 className="hidden"
                 onChange={(e) => {
@@ -1315,24 +1377,45 @@ export default function MangaVisionStudioPage() {
               />
               <Upload className="mx-auto text-indigo-500 mb-2.5" size={34} />
               <p className="font-extrabold text-gray-800 dark:text-gray-100 text-sm sm:text-base">
-                גרור לכאן את כל תמונות הפרק או לחץ לבחירת קבצים (עד 35 עמודים)
+                גרור לכאן תמונות, קובץ PDF, מצגת PowerPoint או טקסט
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                תומך ב-JPG / PNG / WEBP • הקבצים ממוינים אוטומטית לפי סדר מספרי (`p01`, `p02`... `p16`)
+                חילוץ עמודים אוטומטי ממצגות Google Slides / PowerPoint (`.pptx` / `.odp`), קובצי `.pdf`, תסריטי `.txt` ורצף תמונות (`p01`..`p35`)
               </p>
+              <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
+                  PDF
+                </span>
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
+                  PPTX / Google Slides
+                </span>
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
+                  ODP
+                </span>
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
+                  TXT Script
+                </span>
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50">
+                  JPG / PNG / WEBP
+                </span>
+              </div>
             </div>
 
-            {/* Selected Pages Preview Strip */}
+            {/* Selected Pages / Documents Preview Strip */}
             {selectedFiles.length > 0 && (
               <div className="bg-gray-50 dark:bg-[#0B0F19] border border-gray-200 dark:border-gray-800 rounded-2xl p-3.5">
                 <div className="flex items-center justify-between mb-2.5">
                   <span className="text-xs font-extrabold text-gray-700 dark:text-gray-200">
-                    נבחרו {selectedFiles.length} עמודים (ממוינים לקריאה):
+                    {hasDocumentSelected
+                      ? `נבחרו ${selectedFiles.length} קבצים (יחולצו לעמודי מנגה אוטומטית):`
+                      : `נבחרו ${selectedFiles.length} עמודים (ממוינים לקריאה):`}
                   </span>
                   <button
                     type="button"
                     onClick={() => {
-                      selectedFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl));
+                      selectedFiles.forEach((f) => {
+                        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+                      });
                       setSelectedFiles([]);
                     }}
                     className="text-xs text-red-500 hover:underline font-bold"
@@ -1344,14 +1427,28 @@ export default function MangaVisionStudioPage() {
                   {selectedFiles.map((item, idx) => (
                     <div
                       key={`${item.file.name}_${idx}`}
-                      className="relative shrink-0 w-20 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-black/5"
+                      className={`relative shrink-0 ${
+                        item.kind === 'image' ? 'w-20' : 'w-36'
+                      } rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-black/5`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={item.previewUrl}
-                        alt={item.file.name}
-                        className="w-20 h-28 object-cover"
-                      />
+                      {item.kind === 'image' ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={item.previewUrl}
+                          alt={item.file.name}
+                          className="w-20 h-28 object-cover"
+                        />
+                      ) : (
+                        <div className="w-36 h-28 flex flex-col items-center justify-center gap-1.5 px-2 bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 text-white">
+                          <FileText size={26} className="text-indigo-400" />
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-500/30 border border-indigo-400/40 text-indigo-200">
+                            {item.kind.toUpperCase()}
+                          </span>
+                          <span className="text-[10px] text-gray-300 font-semibold">
+                            {formatFileSize(item.file.size)}
+                          </span>
+                        </div>
+                      )}
                       <span className="absolute top-1 right-1 bg-black/75 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
                         #{idx + 1}
                       </span>
@@ -1402,13 +1499,19 @@ export default function MangaVisionStudioPage() {
                 {isCreatingChapter ? (
                   <>
                     <Loader2 className="animate-spin" size={20} />
-                    <span>מעלה {selectedFiles.length} עמודים ופותח את האולפן...</span>
+                    <span>
+                      {hasDocumentSelected
+                        ? 'מחלץ עמודים וממיר מצגת לקובץ מנגה...'
+                        : `מעלה ${selectedFiles.length} עמודים ופותח את האולפן...`}
+                    </span>
                   </>
                 ) : (
                   <>
                     <Sparkles size={20} />
                     <span>
-                      העלה פרק והתחל ניתוח חכם (עמוד 1 מיד + השאר ברקע)
+                      {hasDocumentSelected
+                        ? 'חלץ עמודים מהקובץ והתחל ניתוח חכם (עמוד 1 מיד + השאר ברקע)'
+                        : 'העלה פרק והתחל ניתוח חכם (עמוד 1 מיד + השאר ברקע)'}
                     </span>
                   </>
                 )}
@@ -1616,8 +1719,8 @@ export default function MangaVisionStudioPage() {
                 </div>
               </div>
 
-              {/* Manga Image Viewport */}
-              <div className="relative bg-[#090D16] h-[64vh] min-h-[460px] max-h-[760px] overflow-auto flex items-start justify-center p-3">
+              {/* Manga Image Viewport (Responsive Mobile & Desktop Height) */}
+              <div className="relative bg-slate-950 h-[52vh] sm:h-[64vh] min-h-[340px] sm:min-h-[460px] max-h-[760px] overflow-auto flex items-start justify-center p-2.5 sm:p-3">
                 {currentPage ? (
                   <div
                     style={{ width: `${zoomPercent}%` }}
@@ -1958,14 +2061,14 @@ export default function MangaVisionStudioPage() {
                             {/* Interactive Japanese Bubble Text */}
                             <div
                               dir="ltr"
-                              className="text-left leading-[2.35] text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100 py-1.5 flex flex-wrap items-end gap-x-0.5"
+                              className="font-jp text-left leading-[2.45] text-xl sm:text-2xl font-medium text-slate-900 dark:text-slate-100 py-1.5 flex flex-wrap items-end gap-x-1 tracking-[0.03em]"
                             >
                               {bubble.words.map((w, wIdx) => {
                                 if (w.type === 'punctuation') {
                                   return (
                                     <span
                                       key={wIdx}
-                                      className="text-gray-500 dark:text-gray-400"
+                                      className="text-slate-500 dark:text-slate-400"
                                     >
                                       {w.kanji}
                                     </span>
@@ -1987,9 +2090,9 @@ export default function MangaVisionStudioPage() {
                                     }`}
                                   >
                                     {showRuby ? (
-                                      <ruby className="ruby-align-center">
+                                      <ruby className="font-jp ruby-align-center">
                                         {w.kanji}
-                                        <rt className="text-[11px] font-medium text-indigo-600 dark:text-indigo-300 select-none">
+                                        <rt className="text-[13px] font-medium text-indigo-600 dark:text-cyan-300 select-none">
                                           {w.reading}
                                         </rt>
                                       </ruby>
@@ -2212,17 +2315,17 @@ export default function MangaVisionStudioPage() {
                             value={dubInput}
                             onChange={(e) => setDubInput(e.target.value)}
                             placeholder="הקלד או הקלט ביפנית איך היית אומר את הבועה הזו..."
-                            className="w-full p-3.5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#0B0F19] text-left text-base font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="font-jp w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0b1120] text-left text-lg sm:text-xl font-medium text-slate-900 dark:text-white tracking-[0.03em] focus:outline-none focus:ring-2 focus:ring-indigo-500"
                           />
 
                           {/* Quick Manga Particles */}
-                          <div className="flex flex-wrap gap-1.5" dir="ltr">
+                          <div className="flex flex-wrap gap-2" dir="ltr">
                             {MANGA_QUICK_PARTICLES.map((p) => (
                               <button
                                 key={p}
                                 type="button"
                                 onClick={() => setDubInput((prev) => `${prev}${p}`)}
-                                className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-xs font-bold text-gray-700 dark:text-gray-200"
+                                className="font-jp px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-slate-200/80 dark:border-slate-700 text-base font-medium text-slate-900 dark:text-slate-100 transition-colors"
                               >
                                 {p}
                               </button>
@@ -2574,30 +2677,31 @@ export default function MangaVisionStudioPage() {
               <AnimatePresence>
                 {selectedToken && (
                   <motion.div
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 24 }}
-                    className="border-t-2 border-indigo-500 bg-white dark:bg-[#0F172A] p-4 shadow-2xl z-20"
+                    initial={{ opacity: 0, y: 20, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 16, scale: 0.97 }}
+                    transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+                    className="border-t-2 border-indigo-500 bg-white dark:bg-slate-800/95 p-4 shadow-2xl z-20"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div dir="ltr" className="text-left">
-                          <div className="text-xs text-indigo-500 font-bold">
+                      <div className="flex items-center gap-3.5 flex-wrap">
+                        <div dir="ltr" className="font-jp text-left">
+                          <div className="text-sm text-indigo-600 dark:text-cyan-400 font-semibold">
                             {selectedToken.word.reading}
                           </div>
-                          <div className="text-2xl font-black text-gray-900 dark:text-white">
+                          <div className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-[0.03em]">
                             {selectedToken.word.kanji}
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm font-extrabold text-gray-900 dark:text-white">
+                          <div className="text-base font-extrabold text-slate-900 dark:text-slate-100">
                             {deepWordOverride?.meaning ||
                               selectedToken.word.meaning ||
                               '—'}
                           </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
                             צורת מילון (Lemma):{' '}
-                            <span dir="ltr" className="font-bold">
+                            <span dir="ltr" className="font-jp text-sm font-semibold text-slate-800 dark:text-slate-200">
                               {selectedToken.word.lemma}
                             </span>{' '}
                             • {selectedToken.word.type}
@@ -2616,14 +2720,15 @@ export default function MangaVisionStudioPage() {
                       <button
                         type="button"
                         onClick={() => setSelectedToken(null)}
-                        className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400"
+                        className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400"
                       >
                         <X size={18} />
                       </button>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 mt-3">
-                      <button
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
                         type="button"
                         onClick={async () => {
                           const url = await generateAudio(
@@ -2634,12 +2739,13 @@ export default function MangaVisionStudioPage() {
                           );
                           if (url) await playUrlPromise(url, 'popover_word');
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-bold flex items-center gap-1.5"
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 text-xs font-bold flex items-center gap-1.5"
                       >
                         <Volume2 size={14} /> השמע מילה
-                      </button>
+                      </motion.button>
 
-                      <button
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
                         type="button"
                         disabled={deepWordLoading}
                         onClick={handleDeepAnalyzeSelectedWord}
@@ -2651,9 +2757,10 @@ export default function MangaVisionStudioPage() {
                           <Sparkles size={13} />
                         )}
                         ניתוח עומק AI
-                      </button>
+                      </motion.button>
 
-                      <button
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
                         type="button"
                         disabled={
                           miningKey ===
@@ -2665,7 +2772,7 @@ export default function MangaVisionStudioPage() {
                             selectedToken.bubble
                           )
                         }
-                        className="mr-auto px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold flex items-center gap-1.5 shadow"
+                        className="mr-auto px-4 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white text-xs font-extrabold flex items-center gap-1.5 shadow"
                       >
                         {lookupWord(
                           selectedToken.word.lemma,
@@ -2679,7 +2786,7 @@ export default function MangaVisionStudioPage() {
                             <Plus size={14} /> הוסף ל-SRS עם הקשר הבועה
                           </>
                         )}
-                      </button>
+                      </motion.button>
                     </div>
                   </motion.div>
                 )}

@@ -177,33 +177,33 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-10">
-            <div className="bg-white dark:bg-[#111827] p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-4 transition-colors">
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/30">
+            <div className="bg-white dark:bg-slate-800/90 p-5 rounded-3xl shadow-lg border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-4 transition-colors">
+              <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-2xl text-indigo-600 dark:text-cyan-400 border border-indigo-100 dark:border-indigo-800/40">
                 <LibraryBig size={28} />
               </div>
               <div>
-                <div className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">טקסטים שקראתי</div>
-                <div className="text-3xl font-black text-gray-900 dark:text-white">
-                  {isStatsLoading ? <Loader2 className="animate-spin text-gray-400 w-6 h-6" /> : stats.stories}
+                <div className="text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">טקסטים שקראתי</div>
+                <div className="text-3xl font-black text-slate-900 dark:text-slate-100">
+                  {isStatsLoading ? <Loader2 className="animate-spin text-slate-400 w-6 h-6" /> : stats.stories}
                 </div>
               </div>
             </div>
             
-            <div className="bg-white dark:bg-[#111827] p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-4 transition-colors">
-              <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30">
+            <div className="bg-white dark:bg-slate-800/90 p-5 rounded-3xl shadow-lg border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-4 transition-colors">
+              <div className="bg-cyan-50 dark:bg-cyan-900/20 p-4 rounded-2xl text-cyan-600 dark:text-cyan-400 border border-cyan-100 dark:border-cyan-800/40">
                 <BrainCircuit size={28} />
               </div>
               <div>
-                <div className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">מילים לתרגול</div>
-                <div className="text-3xl font-black text-gray-900 dark:text-white">
-                  {isStatsLoading ? <Loader2 className="animate-spin text-gray-400 w-6 h-6" /> : stats.words}
+                <div className="text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">מילים לתרגול</div>
+                <div className="text-3xl font-black text-slate-900 dark:text-slate-100">
+                  {isStatsLoading ? <Loader2 className="animate-spin text-slate-400 w-6 h-6" /> : stats.words}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#111827] rounded-3xl shadow-xl shadow-blue-900/5 dark:shadow-[0_0_30px_rgba(0,0,0,0.5)] p-8 border border-gray-100 dark:border-gray-800 relative overflow-hidden">
-            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${isPro ? 'from-blue-500 to-indigo-500' : 'from-transparent via-blue-500 to-transparent'} opacity-50 dark:opacity-100`}></div>
+          <div className="bg-white dark:bg-slate-800/95 rounded-3xl shadow-xl p-8 border border-slate-200/80 dark:border-slate-700/80 relative overflow-hidden">
+            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${isPro ? 'from-indigo-500 via-cyan-500 to-indigo-500' : 'from-transparent via-indigo-500 to-transparent'} opacity-70 dark:opacity-100`}></div>
 
             <div className="mb-6 relative z-10">
               <label className="block text-gray-800 dark:text-gray-200 font-bold mb-3 text-lg">

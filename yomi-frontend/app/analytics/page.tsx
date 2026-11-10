@@ -20,6 +20,14 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useStreak } from '../../hooks/useStreak';
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+} from 'recharts';
 import {
   getAnalyticsSummary,
   downloadAnalyticsBackup,
@@ -78,6 +86,7 @@ function CircularGauge({
 
 export default function AnalyticsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { streak: profileStreak } = useStreak(user);
   const [summary, setSummary] = useState<AnalyticsSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadingBackup, setDownloadingBackup] = useState(false);
@@ -130,38 +139,63 @@ export default function AnalyticsPage() {
     return [
       {
         key: 'mastered',
+        shortName: 'נשלטות (Mastered)',
         label: 'נשלטות לטווח ארוך (Mastered · מרווח 21+ ימים)',
         count: b.mastered,
         pct: summary?.totalCards ? Math.round((b.mastered / total) * 100) : 0,
+        hexColor: '#10b981',
         barColor: 'bg-emerald-500',
         badgeColor: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10',
       },
       {
         key: 'review',
+        shortName: 'בחזרה פעילה (Review)',
         label: 'בחזרה פעילה (Active Review)',
         count: b.review,
         pct: summary?.totalCards ? Math.round((b.review / total) * 100) : 0,
+        hexColor: '#3b82f6',
         barColor: 'bg-blue-500',
         badgeColor: 'text-blue-600 dark:text-blue-400 bg-blue-500/10',
       },
       {
         key: 'learning',
+        shortName: 'בלמידה (Learning)',
         label: 'בלמידה וחיזוק ראשוני (Learning / Relearning)',
         count: b.learning,
         pct: summary?.totalCards ? Math.round((b.learning / total) * 100) : 0,
+        hexColor: '#f59e0b',
         barColor: 'bg-amber-500',
         badgeColor: 'text-amber-600 dark:text-amber-400 bg-amber-500/10',
       },
       {
         key: 'new',
+        shortName: 'חדשות (New)',
         label: 'חדשות בחפיסה (New)',
         count: b.new,
         pct: summary?.totalCards ? Math.round((b.new / total) * 100) : 0,
+        hexColor: '#64748b',
         barColor: 'bg-slate-400 dark:bg-slate-500',
         badgeColor: 'text-slate-600 dark:text-slate-300 bg-slate-500/15',
       },
     ];
   }, [summary]);
+
+  const pieChartData = useMemo(() => {
+    const nonEmpty = fsrsRows.filter((r) => r.count > 0);
+    if (nonEmpty.length > 0) {
+      return nonEmpty.map((r) => ({
+        name: r.shortName,
+        value: r.count,
+        color: r.hexColor,
+      }));
+    }
+    return [{ name: 'ללא כרטיסיות עדיין', value: 1, color: '#334155' }];
+  }, [fsrsRows]);
+
+  const displayStreak = useMemo(() => {
+    const apiStreak = Number(summary?.currentStreak || 0);
+    return Math.max(apiStreak, Number(profileStreak || 0));
+  }, [summary?.currentStreak, profileStreak]);
 
   const getHeatmapCellColor = (total: number) => {
     if (total <= 0) {
@@ -256,16 +290,50 @@ export default function AnalyticsPage() {
         ) : (
           summary && (
             <>
-              {/* Top KPI Summary Row */}
+              {/* Top KPI Summary Row (Large Metric Cards for Current Streak & Total Mined Words) */}
               <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-[#111827] rounded-3xl p-5 border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                {/* Large Metric Card 1: Current Streak */}
+                <div className="bg-gradient-to-br from-orange-500/10 via-white to-white dark:from-orange-950/30 dark:via-[#111827] dark:to-[#111827] rounded-3xl p-5 border border-orange-200/80 dark:border-orange-900/40 shadow-sm flex flex-col justify-between">
                   <div className="flex items-center justify-between text-gray-400">
-                    <span className="text-xs font-extrabold">סה״כ כרטיסיות ב-SRS</span>
-                    <BrainCircuit size={18} className="text-blue-500" />
+                    <span className="text-xs font-extrabold text-orange-600 dark:text-orange-400">
+                      רצף למידה נוכחי (Current Streak)
+                    </span>
+                    <Flame
+                      size={20}
+                      className="text-orange-500 fill-orange-500/20"
+                    />
                   </div>
                   <div className="my-2">
-                    <div className="text-3xl font-black text-gray-900 dark:text-white">
-                      {summary.totalCards}
+                    <div className="text-4xl font-black text-gray-900 dark:text-white flex items-baseline gap-1.5">
+                      <span>{displayStreak}</span>
+                      <span className="text-base font-bold text-orange-500">
+                        ימים ברצף 🔥
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-gray-500 dark:text-slate-400 mt-1">
+                      {summary.activeDaysLast30} ימים פעילים מתוך 30 ·{' '}
+                      {summary.totalActionsLast30} פעולות Immersion
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    שיא רצף: {Math.max(displayStreak, Number(summary.longestStreak || 0))} ימים
+                  </span>
+                </div>
+
+                {/* Large Metric Card 2: Total Mined Words */}
+                <div className="bg-gradient-to-br from-blue-500/10 via-white to-white dark:from-blue-950/30 dark:via-[#111827] dark:to-[#111827] rounded-3xl p-5 border border-blue-200/80 dark:border-blue-900/40 shadow-sm flex flex-col justify-between">
+                  <div className="flex items-center justify-between text-gray-400">
+                    <span className="text-xs font-extrabold text-blue-600 dark:text-blue-400">
+                      סה״כ מילים שנכרו (Total Mined Words)
+                    </span>
+                    <BrainCircuit size={20} className="text-blue-500" />
+                  </div>
+                  <div className="my-2">
+                    <div className="text-4xl font-black text-gray-900 dark:text-white flex items-baseline gap-1.5">
+                      <span>{summary.totalCards}</span>
+                      <span className="text-base font-bold text-blue-500">
+                        מילים ב-SRS
+                      </span>
                     </div>
                     <div className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">
                       {summary.dueNowCount} כרטיסיות מוכנות לחזרה כעת
@@ -280,23 +348,7 @@ export default function AnalyticsPage() {
                   </Link>
                 </div>
 
-                <div className="bg-white dark:bg-[#111827] rounded-3xl p-5 border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-gray-400">
-                    <span className="text-xs font-extrabold">עקביות ב-30 ימים אחרונים</span>
-                    <Flame size={18} className="text-orange-500" />
-                  </div>
-                  <div className="my-2">
-                    <div className="text-3xl font-black text-gray-900 dark:text-white">
-                      {summary.activeDaysLast30}{' '}
-                      <span className="text-base font-bold text-gray-400">/ 30 ימים</span>
-                    </div>
-                    <div className="text-xs font-bold text-orange-500 mt-1">
-                      {summary.totalActionsLast30} פעולות Immersion מצטברות
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-400">כולל חזרות, סיפורים, דיאלוגים ומנגה</span>
-                </div>
-
+                {/* Metric Card 3: Average FSRS Stability */}
                 <div className="bg-white dark:bg-[#111827] rounded-3xl p-5 border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
                   <div className="flex items-center justify-between text-gray-400">
                     <span className="text-xs font-extrabold">יציבות FSRS ממוצעת</span>
@@ -314,6 +366,7 @@ export default function AnalyticsPage() {
                   <span className="text-xs text-gray-400">מנוע זיכרון FSRS v4.5</span>
                 </div>
 
+                {/* Metric Card 4: Active Output & Dubbing */}
                 <div className="bg-white dark:bg-[#111827] rounded-3xl p-5 border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
                   <div className="flex items-center justify-between text-gray-400">
                     <span className="text-xs font-extrabold">הצלחות פלט אקטיבי ודיבוב</span>
@@ -337,61 +390,92 @@ export default function AnalyticsPage() {
                 </div>
               </section>
 
-              {/* Main Middle Grid: FSRS Mastery Bars + Retention & Output Gauges */}
+              {/* Main Middle Grid: Recharts FSRS Donut/Pie Chart + Breakdown Bars + Gauges */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* FSRS Mastery Distribution */}
+                {/* FSRS Mastery Distribution (Recharts Donut Chart + Detailed Bars) */}
                 <section className="lg:col-span-7 bg-white dark:bg-[#111827] rounded-3xl p-6 border border-gray-200 dark:border-slate-800 shadow-sm space-y-5">
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="text-lg font-black text-gray-900 dark:text-white">
-                        התפלגות שליטה ב-FSRS (Mastery Distribution)
+                        התפלגות שליטה ב-FSRS (Mastery Donut Chart)
                       </h2>
                       <p className="text-xs text-gray-500 dark:text-slate-400">
-                        פילוח חי של כל הכרטיסיות לפי שלב הזיכרון הנוכחי שלהן
+                        פילוח חי של כל הכרטיסיות לפי שלב הזיכרון הנוכחי שלהן (`new`, `learning`, `review`, `mastered`)
                       </p>
                     </div>
                     <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                      {summary.totalCards} כרטיסיות
+                      {summary.totalCards} מילים
                     </span>
                   </div>
 
-                  {/* Stacked Combined Bar */}
-                  <div className="h-4 w-full rounded-full bg-gray-100 dark:bg-slate-800 overflow-hidden flex">
-                    {summary.totalCards > 0 &&
-                      fsrsRows.map((row) =>
-                        row.count > 0 ? (
-                          <div
-                            key={row.key}
-                            style={{ width: `${(row.count / summary.totalCards) * 100}%` }}
-                            className={`${row.barColor} h-full transition-all duration-700`}
-                            title={`${row.label}: ${row.count}`}
-                          />
-                        ) : null
-                      )}
-                  </div>
-
-                  {/* Individual Bars */}
-                  <div className="space-y-4 pt-1">
-                    {fsrsRows.map((row) => (
-                      <div key={row.key} className="space-y-1.5">
-                        <div className="flex items-center justify-between text-xs sm:text-sm">
-                          <span className="font-bold text-gray-700 dark:text-slate-200">
-                            {row.label}
-                          </span>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-lg font-black text-xs ${row.badgeColor}`}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                    {/* Recharts Donut Chart */}
+                    <div className="md:col-span-5 relative h-56 flex items-center justify-center">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={58}
+                            outerRadius={84}
+                            paddingAngle={3}
+                            dataKey="value"
+                            stroke="none"
                           >
-                            {row.count} ({row.pct}%)
-                          </span>
-                        </div>
-                        <div className="h-2.5 w-full rounded-full bg-gray-100 dark:bg-slate-800 overflow-hidden">
-                          <div
-                            style={{ width: `${row.pct}%` }}
-                            className={`h-full rounded-full ${row.barColor} transition-all duration-700`}
+                            {pieChartData.map((entry, idx) => (
+                              <Cell key={`cell-${idx}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#0f172a',
+                              borderColor: '#334155',
+                              borderRadius: '12px',
+                              color: '#f8fafc',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                            }}
                           />
-                        </div>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-3xl font-black text-gray-900 dark:text-white">
+                          {summary.totalCards}
+                        </span>
+                        <span className="text-[11px] font-bold text-gray-400">
+                          סה״כ מילים
+                        </span>
                       </div>
-                    ))}
+                    </div>
+
+                    {/* Individual Bars */}
+                    <div className="md:col-span-7 space-y-3.5">
+                      {fsrsRows.map((row) => (
+                        <div key={row.key} className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-gray-700 dark:text-slate-200 flex items-center gap-2">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: row.hexColor }}
+                              />
+                              <span>{row.label}</span>
+                            </span>
+                            <span
+                              className={`px-2.5 py-0.5 rounded-lg font-black text-xs shrink-0 ${row.badgeColor}`}
+                            >
+                              {row.count} ({row.pct}%)
+                            </span>
+                          </div>
+                          <div className="h-2.5 w-full rounded-full bg-gray-100 dark:bg-slate-800 overflow-hidden">
+                            <div
+                              style={{ width: `${row.pct}%` }}
+                              className={`h-full rounded-full ${row.barColor} transition-all duration-700`}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </section>
 
@@ -590,3 +674,4 @@ export default function AnalyticsPage() {
     </div>
   );
 }
+

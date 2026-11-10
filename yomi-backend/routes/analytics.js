@@ -114,8 +114,70 @@ function build30DayWindow() {
 }
 
 /**
+ * Calculates currentStreak and longestStreak from a Set of YYYY-MM-DD date keys.
+ * A streak remains active if the user performed at least 1 action today OR yesterday (UTC).
+ */
+function calculateStreaksFromDateSet(activeDateSet) {
+  if (!activeDateSet || activeDateSet.size === 0) {
+    return { currentStreak: 0, longestStreak: 0 };
+  }
+
+  const today = new Date();
+  const todayUtcMs = Date.UTC(
+    today.getUTCFullYear(),
+    today.getUTCMonth(),
+    today.getUTCDate()
+  );
+  const oneDayMs = 24 * 60 * 60 * 1000;
+
+  const todayKey = toDateKey(new Date(todayUtcMs));
+  const yesterdayKey = toDateKey(new Date(todayUtcMs - oneDayMs));
+
+  let currentStreak = 0;
+  let cursorMs = null;
+
+  if (activeDateSet.has(todayKey)) {
+    cursorMs = todayUtcMs;
+  } else if (activeDateSet.has(yesterdayKey)) {
+    cursorMs = todayUtcMs - oneDayMs;
+  }
+
+  if (cursorMs !== null) {
+    while (activeDateSet.has(toDateKey(new Date(cursorMs)))) {
+      currentStreak += 1;
+      cursorMs -= oneDayMs;
+    }
+  }
+
+  // Calculate longestStreak across all sorted active dates
+  const sortedDates = Array.from(activeDateSet).sort();
+  let longestStreak = 0;
+  let running = 0;
+  let prevMs = null;
+
+  for (const dateStr of sortedDates) {
+    const curMs = Date.parse(`${dateStr}T00:00:00Z`);
+    if (Number.isNaN(curMs)) continue;
+    if (prevMs !== null && Math.round((curMs - prevMs) / oneDayMs) === 1) {
+      running += 1;
+    } else {
+      running = 1;
+    }
+    if (running > longestStreak) {
+      longestStreak = running;
+    }
+    prevMs = curMs;
+  }
+
+  return {
+    currentStreak,
+    longestStreak: Math.max(longestStreak, currentStreak),
+  };
+}
+
+/**
  * GET /api/analytics/summary/:userId
- * Aggregates FSRS mastery breakdown, 30-day immersion activity heatmap,
+ * Aggregates FSRS mastery breakdown, current learning streak, 30-day immersion activity heatmap,
  * retention rate %, active output accuracy/successes, and library totals.
  */
 router.get('/summary/:userId', async (req, res) => {
@@ -128,6 +190,8 @@ router.get('/summary/:userId', async (req, res) => {
         userId,
         totalCards: 0,
         dueNowCount: 0,
+        currentStreak: 0,
+        longestStreak: 0,
         avgStability: 0,
         avgDifficulty: 0,
         fsrsBreakdown: {
@@ -250,12 +314,14 @@ router.get('/summary/:userId', async (req, res) => {
 
     const totalOutputSuccesses = Math.max(cardOutputSuccessSum, correctChallenges.length);
 
-    // Populate 30-day heatmap
+    // Populate 30-day heatmap AND full historical activeDateSet for Current Streak
     const heatmap30Days = build30DayWindow();
     const dayMap = new Map(heatmap30Days.map((entry) => [entry.date, entry]));
+    const activeDateSet = new Set();
 
     for (const log of reviewLogs) {
       const key = toDateKey(log.reviewed_at);
+      if (key) activeDateSet.add(key);
       const bucket = key ? dayMap.get(key) : null;
       if (bucket) {
         bucket.reviews += 1;
@@ -265,6 +331,7 @@ router.get('/summary/:userId', async (req, res) => {
 
     for (const story of stories) {
       const key = toDateKey(story.created_at);
+      if (key) activeDateSet.add(key);
       const bucket = key ? dayMap.get(key) : null;
       if (bucket) {
         bucket.stories += 1;
@@ -274,6 +341,7 @@ router.get('/summary/:userId', async (req, res) => {
 
     for (const dlg of dialogues) {
       const key = toDateKey(dlg.created_at);
+      if (key) activeDateSet.add(key);
       const bucket = key ? dayMap.get(key) : null;
       if (bucket) {
         bucket.dialogues += 1;
@@ -283,6 +351,7 @@ router.get('/summary/:userId', async (req, res) => {
 
     for (const ch of outputChallenges) {
       const key = toDateKey(ch.completed_at || ch.created_at);
+      if (key) activeDateSet.add(key);
       const bucket = key ? dayMap.get(key) : null;
       if (bucket) {
         bucket.trainer += 1;
@@ -292,6 +361,7 @@ router.get('/summary/:userId', async (req, res) => {
 
     for (const manga of mangaChapters) {
       const key = toDateKey(manga.created_at);
+      if (key) activeDateSet.add(key);
       const bucket = key ? dayMap.get(key) : null;
       if (bucket) {
         bucket.manga += 1;
@@ -301,11 +371,15 @@ router.get('/summary/:userId', async (req, res) => {
 
     for (const card of flashcards) {
       const key = toDateKey(card.created_at);
+      if (key) activeDateSet.add(key);
       const bucket = key ? dayMap.get(key) : null;
       if (bucket) {
         bucket.cardsMined += 1;
+        bucket.total += 1;
       }
     }
+
+    const { currentStreak, longestStreak } = calculateStreaksFromDateSet(activeDateSet);
 
     const activeDaysLast30 = heatmap30Days.filter((d) => d.total > 0).length;
     const totalActionsLast30 = heatmap30Days.reduce((acc, d) => acc + d.total, 0);
@@ -314,6 +388,8 @@ router.get('/summary/:userId', async (req, res) => {
       userId,
       totalCards: flashcards.length,
       dueNowCount,
+      currentStreak,
+      longestStreak,
       avgStability:
         stabilityCount > 0 ? Math.round((stabilitySum / stabilityCount) * 10) / 10 : 0,
       avgDifficulty:
@@ -447,3 +523,4 @@ router.get('/export-backup/:userId', async (req, res) => {
 });
 
 module.exports = router;
+

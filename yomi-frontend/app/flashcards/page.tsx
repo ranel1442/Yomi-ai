@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   getUserFlashcards,
   getDueFlashcards,
@@ -169,7 +170,7 @@ function ContextSentenceDisplay({
 
     return (
       <div
-        className={`leading-[2.6] text-gray-800 dark:text-gray-100 ${
+        className={`font-japanese-serif leading-[2.6] text-slate-900 dark:text-slate-100 ${
           compact ? 'text-sm leading-[2.2]' : 'text-lg md:text-xl'
         }`}
         dir="ltr"
@@ -200,9 +201,9 @@ function ContextSentenceDisplay({
               }`}
             >
               {hasFuri ? (
-                <ruby className="flex flex-col items-center">
+                <ruby className="font-jp flex flex-col items-center">
                   <rt
-                    className={`text-[10px] md:text-xs font-normal tracking-wide text-gray-500 dark:text-gray-400 transition-opacity duration-200 ${
+                    className={`text-[13px] font-medium tracking-wide text-slate-600 dark:text-slate-300 transition-opacity duration-200 ${
                       showFurigana ? 'opacity-100' : 'opacity-0 select-none'
                     }`}
                   >
@@ -792,13 +793,19 @@ export default function FlashcardsPage() {
           ) : (
             /* Active Context-First Review Card */
             <div className="flex-1 flex flex-col justify-center">
-              <div
-                onClick={() => !isFlipped && handleFlipSessionCard()}
-                className={`bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 rounded-[2.5rem] shadow-xl dark:shadow-[0_0_40px_rgba(0,0,0,0.45)] p-7 md:p-10 min-h-[26rem] flex flex-col justify-between relative overflow-hidden transition-all ${
-                  !isFlipped ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-700' : ''
-                }`}
-              >
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentSessionCard.id}
+                  initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                  transition={{ duration: 0.22 }}
+                  onClick={() => !isFlipped && handleFlipSessionCard()}
+                  className={`bg-white dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700/80 rounded-[2rem] sm:rounded-[2.5rem] shadow-xl dark:shadow-slate-950/60 p-5 sm:p-8 md:p-10 min-h-[24rem] sm:min-h-[27rem] flex flex-col justify-between relative overflow-hidden transition-all ${
+                    !isFlipped ? 'cursor-pointer hover:border-indigo-400 dark:hover:border-cyan-500/60' : ''
+                  }`}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-cyan-500 to-indigo-500" />
 
                 {/* Card Top Telemetry */}
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
@@ -833,7 +840,7 @@ export default function FlashcardsPage() {
                 <div className="my-7 text-center flex flex-col items-center justify-center">
                   {/* Furigana (hidden until flipped) */}
                   <div
-                    className={`min-h-[1.75rem] text-xl md:text-2xl font-medium text-blue-600 dark:text-blue-400 mb-1.5 transition-all duration-200 ${
+                    className={`font-japanese-sans min-h-[1.75rem] text-xl md:text-2xl font-medium text-indigo-600 dark:text-cyan-400 mb-1.5 transition-all duration-200 ${
                       isFlipped ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 select-none'
                     }`}
                     dir="ltr"
@@ -843,10 +850,10 @@ export default function FlashcardsPage() {
 
                   {/* Japanese Kanji / Word */}
                   <div
-                    className={`${getDynamicFontSize(
+                    className={`font-japanese-sans ${getDynamicFontSize(
                       currentSessionCard.kanji,
                       true
-                    )} font-black text-gray-900 dark:text-white tracking-tight leading-tight break-words max-w-full px-2`}
+                    )} font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight break-words max-w-full px-2`}
                     dir="ltr"
                   >
                     {currentSessionCard.kanji}
@@ -854,8 +861,8 @@ export default function FlashcardsPage() {
 
                   {/* Prominent Context Sentence Box (Sentence Mining!) */}
                   {hasContextSentence && (
-                    <div className="mt-6 w-full max-w-2xl bg-gray-50/90 dark:bg-[#0B0F19]/80 border border-gray-200/80 dark:border-gray-800 rounded-2xl p-4 md:p-5 text-center shadow-inner">
-                      <div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-2">
+                    <div className="mt-6 w-full max-w-2xl bg-slate-50/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-4 md:p-5 text-center shadow-inner">
+                      <div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 mb-2">
                         <Quote size={12} />
                         <span>משפט הקשר מתוך הקריאה</span>
                       </div>
@@ -866,7 +873,7 @@ export default function FlashcardsPage() {
                       />
 
                       {isFlipped && currentSessionCard.context_translation && (
-                        <div className="mt-3 pt-3 border-t border-gray-200/70 dark:border-gray-800 text-sm md:text-base text-gray-600 dark:text-gray-300 font-medium animate-in fade-in duration-200">
+                        <div className="mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800 text-sm md:text-base text-slate-500 dark:text-slate-400 font-medium animate-in fade-in duration-200">
                           {currentSessionCard.context_translation}
                         </div>
                       )}
@@ -942,20 +949,21 @@ export default function FlashcardsPage() {
                     </div>
                   ) : (
                     <div className="mt-10">
-                      <button
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleFlipSessionCard();
                         }}
-                        className="inline-flex items-center gap-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-8 rounded-2xl shadow-lg hover:shadow-blue-500/25 transition-all text-lg"
+                        className="inline-flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold py-3.5 px-8 rounded-2xl shadow-lg hover:shadow-indigo-500/25 transition-all text-lg"
                       >
                         <Eye size={20} />
                         <span>חשוף תשובה והקשר</span>
-                        <kbd className="px-2 py-0.5 text-xs rounded-lg bg-blue-700/80 border border-blue-400/40 font-mono">
+                        <kbd className="px-2 py-0.5 text-xs rounded-lg bg-indigo-900/60 border border-indigo-400/40 font-mono">
                           Space
                         </kbd>
-                      </button>
+                      </motion.button>
                     </div>
                   )}
                 </div>
@@ -963,7 +971,7 @@ export default function FlashcardsPage() {
                 {/* Bottom Rating Bar (4 FSRS Buttons with Interval Previews Above) */}
                 {isFlipped ? (
                   <div
-                    className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-gray-100 dark:border-gray-800 animate-in fade-in duration-200"
+                    className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100 dark:border-slate-700/80 animate-in fade-in duration-200"
                     dir="ltr"
                   >
                     {RATING_CONFIG.map((cfg) => (
@@ -973,7 +981,8 @@ export default function FlashcardsPage() {
                         >
                           {previews[cfg.rating]}
                         </span>
-                        <button
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
                           type="button"
                           disabled={isSubmittingReview}
                           onClick={() => handleRateSessionCard(cfg.rating)}
@@ -986,17 +995,18 @@ export default function FlashcardsPage() {
                             <span>{cfg.enLabel}</span>
                           </div>
                           <span className="text-xs opacity-80">{cfg.heLabel}</span>
-                        </button>
+                        </motion.button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center text-xs text-gray-400 dark:text-gray-500 flex items-center justify-center gap-2">
+                  <div className="text-center text-xs text-slate-400 flex items-center justify-center gap-2">
                     <Keyboard size={14} />
                     <span>לחץ על מקש הרווח (Space) לחשיפת הפוריגאנה, הפירוש ותרגום המשפט</span>
                   </div>
                 )}
-              </div>
+                </motion.div>
+              </AnimatePresence>
 
               {/* Keyboard Legend Footer */}
               <div className="mt-6 flex flex-wrap justify-center gap-4 text-xs text-gray-500 dark:text-gray-400">

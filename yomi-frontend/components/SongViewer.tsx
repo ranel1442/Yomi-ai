@@ -125,7 +125,7 @@ export default function SongViewer({ song, userId }: SongViewerProps) {
           )}
         </div>
 
-        <div className="leading-[3.5] text-center min-h-[50vh] pb-32" dir="ltr">
+        <div className="font-jp leading-[3.3] text-center min-h-[50vh] pb-32 tracking-[0.03em]" dir="ltr">
           {syncData.map((line: any, i: number) => (
             <div key={i} className="mb-6">
               {line.words.map((word: any, j: number) => {
@@ -137,12 +137,12 @@ export default function SongViewer({ song, userId }: SongViewerProps) {
                   <span 
                     key={j} 
                     onClick={() => setSelectedWord({ ...word, lineText: line.lineText })}
-                    className={`cursor-pointer mx-1.5 px-1 rounded transition-all duration-150 inline-block ${
-                      isHighlighted ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 font-bold scale-110 shadow-sm' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200'
+                    className={`cursor-pointer mx-1.5 px-1.5 py-0.5 rounded-lg transition-all duration-150 inline-block ${
+                      isHighlighted ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-cyan-300 font-bold scale-110 shadow-sm' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100'
                     }`}
                   >
-                    <ruby className="text-xl md:text-2xl flex flex-col items-center">
-                      <rt className={`text-[10px] md:text-xs text-gray-500 font-normal transition-all duration-300 ${!shouldShowFurigana ? 'opacity-0 select-none' : 'opacity-100'}`}>
+                    <ruby className="font-jp text-xl md:text-2xl font-medium flex flex-col items-center">
+                      <rt className={`text-[13px] text-slate-600 dark:text-slate-300 font-medium transition-all duration-300 ${!shouldShowFurigana ? 'opacity-0 select-none' : 'opacity-100'}`}>
                         {kata2Hira(word.reading) || ' '}
                       </rt>
                       {word.word}
@@ -161,14 +161,14 @@ export default function SongViewer({ song, userId }: SongViewerProps) {
             initial={{ opacity: 0, y: 50, x: "-50%" }}
             animate={{ opacity: 1, y: 0, x: "-50%" }}
             exit={{ opacity: 0, y: 50, x: "-50%" }}
-            className="fixed bottom-6 left-1/2 bg-white dark:bg-[#1E293B] text-gray-900 dark:text-white p-7 rounded-2xl shadow-2xl dark:shadow-[0_0_40px_rgba(0,0,0,0.8)] w-[calc(100%-2rem)] max-w-sm z-50 border border-gray-100 dark:border-gray-700 backdrop-blur-md"
+            className="fixed bottom-6 left-1/2 bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white p-7 rounded-3xl shadow-2xl w-[calc(100%-2rem)] max-w-sm z-50 border border-slate-200 dark:border-slate-700"
             dir="rtl"
           >
-            <button onClick={() => setSelectedWord(null)} className="absolute top-4 left-4 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><X size={22} /></button>
+            <button onClick={() => setSelectedWord(null)} className="absolute top-4 left-4 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={22} /></button>
             <div className="text-center mb-7">
-              <div className="text-base text-gray-500 dark:text-gray-400 mb-1 font-medium">{kata2Hira(selectedWord.reading)}</div>
-              <div className="text-5xl font-bold mb-4 text-gray-900 dark:text-white">{selectedWord.word}</div>
-              <div className="text-2xl text-blue-600 dark:text-blue-400 font-semibold">{selectedWord.meaning}</div>
+              <div className="font-jp text-base text-indigo-600 dark:text-cyan-400 mb-1 font-semibold" dir="ltr">{kata2Hira(selectedWord.reading)}</div>
+              <div className="font-jp text-4xl font-bold mb-4 text-slate-900 dark:text-white tracking-[0.03em]" dir="ltr">{selectedWord.word}</div>
+              <div className="text-2xl text-indigo-600 dark:text-cyan-400 font-extrabold">{selectedWord.meaning}</div>
             </div>
             <div className="flex justify-center gap-4 border-t border-gray-100 dark:border-gray-800 pt-5">
               <button onClick={() => handlePlayWordAudio(selectedWord.word)} disabled={activeAudio !== null} className="flex-1 flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white px-5 py-3 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50">

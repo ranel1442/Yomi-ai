@@ -487,7 +487,7 @@ export default function ImporterPage() {
               rows={7}
               dir="ltr"
               placeholder="ここに日本語のテキストやマンガのセリフを貼り付けてください..."
-              className="w-full p-4 rounded-2xl bg-gray-50 dark:bg-[#0B0F19] border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-lg leading-relaxed focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y font-medium"
+              className="font-jp w-full p-4 rounded-2xl bg-slate-50 dark:bg-[#0b1120] border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xl leading-[2.0] tracking-[0.03em] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y font-medium"
             />
 
             <div className="flex items-center justify-between text-xs text-gray-400 mt-2 mb-4">
@@ -665,7 +665,7 @@ export default function ImporterPage() {
 
                           {/* Interactive Sentence Tokens */}
                           <div
-                            className="leading-[3.4] text-gray-900 dark:text-gray-100 text-left mb-4"
+                            className="font-jp leading-[3.1] text-slate-900 dark:text-slate-100 text-left mb-4 tracking-[0.03em]"
                             dir="ltr"
                           >
                             {sentence.words.map((word, wIdx) => {
@@ -713,19 +713,19 @@ export default function ImporterPage() {
                                   onClick={() =>
                                     !punct && openWordPopover(word, sentence, sIdx, wIdx)
                                   }
-                                  className={`group/imp inline-block px-1 rounded-lg transition-all ${
+                                  className={`group/imp inline-block px-1 py-0.5 rounded-lg transition-all ${
                                     punct ? 'cursor-default px-0' : 'cursor-pointer'
                                   } ${
                                     isSelected
-                                      ? 'bg-purple-100 dark:bg-purple-900/50 ring-2 ring-purple-500/40'
+                                      ? 'bg-indigo-100 dark:bg-indigo-900/50 ring-2 ring-indigo-500/40'
                                       : !punct
-                                      ? 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                                      ? 'hover:bg-slate-100 dark:hover:bg-slate-800'
                                       : ''
                                   }`}
                                 >
-                                  <ruby className="text-xl md:text-2xl flex flex-col items-center">
+                                  <ruby className="font-jp text-xl md:text-2xl font-medium flex flex-col items-center">
                                     <rt
-                                      className={`text-[10px] md:text-xs font-normal text-gray-500 dark:text-gray-400 transition-opacity ${rtClass}`}
+                                      className={`text-[13px] font-medium text-slate-600 dark:text-slate-300 transition-opacity ${rtClass}`}
                                     >
                                       {hasKanjiReading ? word.reading : ' '}
                                     </rt>
@@ -908,32 +908,32 @@ export default function ImporterPage() {
                                 )}
 
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-baseline gap-2" dir="ltr">
-                                    <span className="text-xl font-black text-gray-900 dark:text-white">
+                                  <div className="flex flex-wrap items-baseline gap-2.5" dir="ltr">
+                                    <span className="font-jp text-2xl font-bold text-slate-900 dark:text-white">
                                       {item.lemma}
                                     </span>
                                     {item.reading && (
-                                      <span className="text-xs text-blue-600 dark:text-blue-400 font-bold">
+                                      <span className="font-jp text-sm text-indigo-600 dark:text-cyan-400 font-semibold">
                                         {item.reading}
                                       </span>
                                     )}
                                     {item.kanji !== item.lemma && (
-                                      <span className="text-xs text-gray-400">
+                                      <span className="font-jp text-sm text-slate-500 dark:text-slate-400">
                                         (בטקסט: {item.kanji})
                                       </span>
                                     )}
                                     {item.jlpt_level && (
-                                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-black">
+                                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold">
                                         {item.jlpt_level}
                                       </span>
                                     )}
                                   </div>
 
-                                  <div className="text-sm font-bold text-gray-800 dark:text-gray-200 mt-1">
+                                  <div className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1">
                                     {item.meaning}
                                   </div>
                                   <div
-                                    className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate"
+                                    className="font-jp text-sm text-slate-600 dark:text-slate-300 mt-1 truncate"
                                     dir="ltr"
                                   >
                                     “{item.sentenceJapanese}”
@@ -1011,7 +1011,7 @@ export default function ImporterPage() {
                                 <div className="flex items-start justify-between gap-4 mb-4">
                                   <div className="flex items-center gap-4">
                                     <div
-                                      className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/15 to-purple-500/15 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-4xl font-black text-indigo-700 dark:text-indigo-300 shrink-0"
+                                      className="font-jp w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/15 to-cyan-500/15 border border-indigo-200 dark:border-indigo-700 flex items-center justify-center text-4xl font-bold text-indigo-700 dark:text-indigo-200 shrink-0"
                                       dir="ltr"
                                     >
                                       {kCard.character}
@@ -1044,19 +1044,19 @@ export default function ImporterPage() {
 
                                 {/* Onyomi & Kunyomi */}
                                 <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
-                                  <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-[#0B0F19] border border-gray-200/70 dark:border-gray-800">
-                                    <div className="text-[10px] font-bold text-gray-400 mb-0.5">
+                                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#0b1120] border border-slate-200/70 dark:border-slate-800">
+                                    <div className="text-[10px] font-bold text-slate-400 mb-0.5">
                                       אונ׳יומי (Onyomi)
                                     </div>
-                                    <div className="font-bold text-gray-800 dark:text-gray-200" dir="ltr">
+                                    <div className="font-jp text-sm font-semibold text-slate-900 dark:text-slate-100" dir="ltr">
                                       {kCard.onyomi.length > 0 ? kCard.onyomi.join(' • ') : '—'}
                                     </div>
                                   </div>
-                                  <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-[#0B0F19] border border-gray-200/70 dark:border-gray-800">
-                                    <div className="text-[10px] font-bold text-gray-400 mb-0.5">
+                                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#0b1120] border border-slate-200/70 dark:border-slate-800">
+                                    <div className="text-[10px] font-bold text-slate-400 mb-0.5">
                                       קונ׳יומי (Kunyomi)
                                     </div>
-                                    <div className="font-bold text-gray-800 dark:text-gray-200" dir="ltr">
+                                    <div className="font-jp text-sm font-semibold text-slate-900 dark:text-slate-100" dir="ltr">
                                       {kCard.kunyomi.length > 0 ? kCard.kunyomi.join(' • ') : '—'}
                                     </div>
                                   </div>
@@ -1084,13 +1084,13 @@ export default function ImporterPage() {
                                         className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-[#0B0F19]/80 text-xs"
                                       >
                                         <div className="min-w-0">
-                                          <span className="font-black text-sm ml-2" dir="ltr">
+                                          <span className="font-jp font-bold text-base text-slate-900 dark:text-white ml-2" dir="ltr">
                                             {juk.word}
                                           </span>
-                                          <span className="text-blue-600 dark:text-blue-400 ml-2" dir="ltr">
+                                          <span className="font-jp text-sm text-indigo-600 dark:text-cyan-400 font-medium ml-2" dir="ltr">
                                             ({juk.reading})
                                           </span>
-                                          <span className="text-gray-600 dark:text-gray-300">
+                                          <span className="text-slate-600 dark:text-slate-300">
                                             — {juk.meaning_hebrew}
                                           </span>
                                         </div>
@@ -1210,42 +1210,44 @@ export default function ImporterPage() {
             initial={{ opacity: 0, y: 40, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: 40, x: '-50%' }}
-            className="fixed bottom-5 left-1/2 bg-white/95 dark:bg-[#1E293B]/95 text-gray-900 dark:text-white p-6 rounded-3xl shadow-2xl w-[calc(100%-1.5rem)] max-w-md z-50 border border-gray-200 dark:border-gray-700 backdrop-blur-xl"
+            className="fixed bottom-5 left-1/2 bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white p-6 rounded-3xl shadow-2xl w-[calc(100%-1.5rem)] max-w-md z-50 border border-slate-200 dark:border-slate-700"
             dir="rtl"
           >
             <button
               onClick={() => setSelectedWordCtx(null)}
-              className="absolute top-4 left-4 text-gray-400 hover:text-gray-900 dark:hover:text-white p-1"
+              className="absolute top-4 left-4 text-slate-400 hover:text-slate-900 dark:hover:text-white p-1"
             >
               <X size={20} />
             </button>
 
             <div className="text-center mb-4">
-              <div className="text-sm text-purple-600 dark:text-purple-400 font-bold mb-1" dir="ltr">
+              <div className="font-jp text-base text-indigo-600 dark:text-cyan-400 font-semibold mb-1" dir="ltr">
                 {selectedWordCtx.word.reading}
               </div>
-              <div className="text-4xl font-black mb-2" dir="ltr">
+              <div className="font-jp text-4xl font-bold mb-2 tracking-[0.03em]" dir="ltr">
                 {selectedWordCtx.word.kanji}
               </div>
-              <div className="text-xl text-purple-600 dark:text-purple-400 font-extrabold">
+              <div className="text-xl text-indigo-600 dark:text-cyan-400 font-extrabold">
                 {selectedWordCtx.word.meaning}
               </div>
 
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
-                <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold">
+                <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-200 font-bold">
                   צורת מילון:{' '}
-                  <strong dir="ltr">{selectedWordCtx.word.lemma || selectedWordCtx.word.kanji}</strong>
+                  <strong className="font-jp text-sm font-semibold" dir="ltr">
+                    {selectedWordCtx.word.lemma || selectedWordCtx.word.kanji}
+                  </strong>
                 </span>
                 {selectedWordCtx.word.type && (
                   <span
-                    className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-[#0B0F19] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-mono"
+                    className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-[#0b1120] border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-mono"
                     dir="ltr"
                   >
                     {selectedWordCtx.word.type}
                   </span>
                 )}
                 {selectedWordCtx.word.jlpt_level && (
-                  <span className="px-2.5 py-1 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-black">
+                  <span className="px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold">
                     {selectedWordCtx.word.jlpt_level}
                   </span>
                 )}
@@ -1253,7 +1255,7 @@ export default function ImporterPage() {
 
               {selectedWordCtx.word.conjugation_breakdown && (
                 <div
-                  className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs font-semibold"
+                  className="font-jp mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-sm font-medium"
                   dir="ltr"
                 >
                   <GitBranch size={13} />
@@ -1262,16 +1264,16 @@ export default function ImporterPage() {
               )}
             </div>
 
-            <div className="mb-4 bg-gray-50 dark:bg-[#0B0F19]/90 border border-gray-200/80 dark:border-gray-800 rounded-2xl p-3 text-sm">
-              <div className="flex items-center gap-1 text-[11px] font-bold text-gray-400 mb-1">
+            <div className="mb-4 bg-slate-50 dark:bg-[#0b1120] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 text-sm">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400 mb-1">
                 <Quote size={11} />
                 <span>משפט ההקשר שיישמר בכרטיסייה:</span>
               </div>
-              <div className="font-medium" dir="ltr">
+              <div className="font-jp text-base font-medium text-slate-900 dark:text-slate-100" dir="ltr">
                 {selectedWordCtx.sentenceJapanese}
               </div>
               {selectedWordCtx.sentenceHebrew && (
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 pt-1 border-t border-gray-200/60 dark:border-gray-800">
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
                   {selectedWordCtx.sentenceHebrew}
                 </div>
               )}

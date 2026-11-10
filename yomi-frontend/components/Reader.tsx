@@ -442,35 +442,36 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
   }, [selectedCtx, lookupWord]);
 
   return (
-    <div className="relative max-w-3xl mx-auto p-6 md:p-10 bg-white dark:bg-[#111827] rounded-3xl shadow-lg dark:shadow-[0_0_30px_rgba(0,0,0,0.5)] border border-gray-100 dark:border-gray-800 mt-8 mb-24 transition-colors duration-300 overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-40 dark:opacity-80" />
+    <div className="relative max-w-3xl mx-auto p-6 md:p-10 bg-white dark:bg-slate-800/95 rounded-3xl shadow-xl dark:shadow-slate-950/60 border border-slate-200/80 dark:border-slate-700/80 mt-8 mb-24 transition-colors duration-300 overflow-hidden">
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-cyan-500 to-indigo-500 opacity-70 dark:opacity-90" />
 
       {/* Story Title */}
       <div className="text-center mb-8 px-4 relative z-10" dir="rtl">
         <h1
-          className="text-3xl md:text-5xl font-black text-gray-900 dark:text-white mb-4 leading-tight drop-shadow-sm"
+          className="font-japanese-serif text-3xl md:text-5xl font-black text-slate-900 dark:text-slate-100 mb-4 leading-tight drop-shadow-sm"
           dir="ltr"
         >
           {storyContent.title_japanese}
         </h1>
-        <h2 className="text-xl text-gray-600 dark:text-gray-400 font-medium">
+        <h2 className="text-xl text-slate-500 dark:text-slate-400 font-medium">
           {storyContent.title_hebrew}
         </h2>
       </div>
 
       {/* Controls Toolbar: Audio Playback + Smart SRS Furigana Toggle */}
       <div
-        className="flex flex-wrap justify-center md:justify-between items-center gap-4 mb-10 relative z-30 p-4 bg-gray-50 dark:bg-[#0B0F19]/60 rounded-2xl border border-gray-100 dark:border-gray-800"
+        className="flex flex-wrap justify-center md:justify-between items-center gap-4 mb-10 relative z-30 p-4 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80"
         dir="rtl"
       >
         <div className="flex items-center gap-3">
-          <button
+          <motion.button
+            whileTap={{ scale: 0.95 }}
             onClick={handlePlayAll}
             disabled={isAudioLoading || activeAudio === 'word'}
             className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm ${
               isPlayingAll
                 ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                : 'bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white shadow-indigo-500/20'
             } disabled:opacity-70 disabled:cursor-not-allowed`}
           >
             {isAudioLoading ? (
@@ -483,7 +484,7 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
             <span className="text-sm">
               {isAudioLoading ? 'מכין שמע...' : isPlayingAll ? 'השהה' : 'הקרא הכל'}
             </span>
-          </button>
+          </motion.button>
 
           <div className="relative">
             <button
@@ -577,9 +578,9 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
         </div>
       )}
 
-      {/* Interactive Story Text */}
+      {/* Interactive Story Text (Traditional Japanese Serif Typography) */}
       <div
-        className="leading-[3.6] text-gray-900 dark:text-gray-100 text-left relative z-10"
+        className="font-japanese-serif leading-[3.6] text-slate-900 dark:text-slate-100 text-left relative z-10 px-1 sm:px-2"
         dir="ltr"
       >
         {sentencesWithGlobalIdx.map((sentence, sIdx) => (
@@ -636,12 +637,12 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
                       : ''
                   }`}
                 >
-                  <ruby className="text-xl md:text-2xl flex flex-col items-center">
+                  <ruby className="text-xl md:text-2xl font-medium flex flex-col items-center">
                     <rt
-                      className={`text-[10px] md:text-xs pb-0.5 font-normal tracking-wide transition-opacity duration-200 ${
+                      className={`text-[13px] pb-0.5 font-medium tracking-wide transition-opacity duration-200 ${
                         isHighlighted
-                          ? 'text-blue-700 dark:text-blue-300 font-medium'
-                          : 'text-gray-500 dark:text-gray-400'
+                          ? 'text-indigo-700 dark:text-cyan-300 font-semibold'
+                          : 'text-slate-600 dark:text-slate-300'
                       } ${rtVisibilityClass}`}
                     >
                       {hasKanjiReading ? word.reading : ' '}
@@ -815,15 +816,16 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
       <AnimatePresence>
         {selectedCtx && (
           <motion.div
-            initial={{ opacity: 0, y: 40, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: 40, x: '-50%' }}
-            className="fixed bottom-5 left-1/2 bg-white/95 dark:bg-[#1E293B]/95 text-gray-900 dark:text-white p-6 md:p-7 rounded-3xl shadow-2xl dark:shadow-[0_0_50px_rgba(0,0,0,0.85)] w-[calc(100%-1.5rem)] max-w-md z-50 border border-gray-200 dark:border-gray-700 backdrop-blur-xl"
+            initial={{ opacity: 0, y: 28, scale: 0.95, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: '-50%' }}
+            exit={{ opacity: 0, y: 20, scale: 0.95, x: '-50%' }}
+            transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+            className="fixed bottom-5 left-1/2 bg-white dark:bg-[#1e293b] text-slate-900 dark:text-slate-100 p-6 md:p-7 rounded-3xl shadow-2xl dark:shadow-[0_0_50px_rgba(0,0,0,0.85)] w-[calc(100%-1.5rem)] max-w-md z-50 border border-slate-200 dark:border-slate-700"
             dir="rtl"
           >
             <button
               onClick={() => setSelectedCtx(null)}
-              className="absolute top-4 left-4 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors p-1"
+              className="absolute top-4 left-4 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors p-1"
               aria-label="Close analysis popover"
             >
               <X size={20} />
@@ -832,33 +834,33 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
             {/* Surface Form + Reading + Meaning */}
             <div className="text-center mb-5">
               <div
-                className="text-sm text-blue-600 dark:text-blue-400 mb-1 font-bold tracking-wide"
+                className="font-jp text-base text-indigo-600 dark:text-cyan-400 mb-1 font-semibold tracking-wide"
                 dir="ltr"
               >
                 {selectedCtx.word.reading}
               </div>
               <div
-                className="text-4xl md:text-5xl font-black mb-2.5 text-gray-900 dark:text-white"
+                className="font-jp text-4xl md:text-5xl font-bold mb-2.5 text-slate-900 dark:text-slate-100 tracking-[0.03em]"
                 dir="ltr"
               >
                 {selectedCtx.word.kanji}
               </div>
-              <div className="text-xl md:text-2xl text-blue-600 dark:text-blue-400 font-extrabold">
+              <div className="text-xl md:text-2xl text-indigo-600 dark:text-cyan-400 font-extrabold">
                 {selectedCtx.word.meaning}
               </div>
 
               {/* Morphological Breakdown Chips: Lemma, POS, Conjugation */}
               <div className="mt-3.5 flex flex-wrap items-center justify-center gap-2 text-xs">
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-bold">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-700/60 text-indigo-700 dark:text-indigo-200 font-bold">
                   <span>צורת מילון:</span>
-                  <strong dir="ltr" className="font-black">
+                  <strong dir="ltr" className="font-jp text-sm font-semibold">
                     {selectedCtx.word.lemma || selectedCtx.word.kanji}
                   </strong>
                 </span>
 
                 {selectedCtx.word.type && (
                   <span
-                    className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-[#0B0F19] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-mono"
+                    className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-mono"
                     dir="ltr"
                   >
                     {selectedCtx.word.type}
@@ -877,7 +879,7 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
               )}
 
               {isAnalyzingLegacyWord && (
-                <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-gray-400">
+                <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-slate-400">
                   <Loader2 className="animate-spin" size={12} />
                   <span>מעשיר ניתוח דקדוקי...</span>
                 </div>
@@ -885,16 +887,19 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
             </div>
 
             {/* Context Sentence Preview */}
-            <div className="mb-5 bg-gray-50 dark:bg-[#0B0F19]/90 border border-gray-200/80 dark:border-gray-800 rounded-2xl p-3.5 text-sm">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1">
+            <div className="mb-5 bg-slate-50 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-3.5 text-sm">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 mb-1">
                 <Quote size={11} />
                 <span>משפט ההקשר שיישמר בכרטיסייה:</span>
               </div>
-              <div className="text-gray-900 dark:text-gray-100 font-medium leading-relaxed" dir="ltr">
+              <div
+                className="font-japanese-serif text-slate-900 dark:text-slate-100 font-medium leading-relaxed"
+                dir="ltr"
+              >
                 {selectedCtx.sentenceJapanese}
               </div>
               {selectedCtx.sentenceHebrew && (
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 pt-1.5 border-t border-gray-200/60 dark:border-gray-800">
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
                   {selectedCtx.sentenceHebrew}
                 </div>
               )}
@@ -908,11 +913,12 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
             )}
 
             {/* Action Buttons: Instant Word TTS + 1-Click Add to SRS (or Mastery Status) */}
-            <div className="flex items-center gap-3 border-t border-gray-100 dark:border-gray-800 pt-4">
-              <button
+            <div className="flex items-center gap-3 border-t border-slate-100 dark:border-slate-700/80 pt-4">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
                 onClick={() => handlePlayWordAudio(selectedCtx.word.kanji)}
                 disabled={activeAudio !== null}
-                className="flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white px-4 py-3 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 shrink-0"
+                className="flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 px-4 py-3 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 shrink-0"
               >
                 {activeAudio === 'word' ? (
                   <Loader2 className="animate-spin" size={18} />
@@ -920,7 +926,7 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
                   <Play size={18} />
                 )}
                 <span>השמע</span>
-              </button>
+              </motion.button>
 
               {selectedWordSrsCard ? (
                 <div className="flex-1 flex items-center justify-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 px-4 py-3 rounded-xl font-bold text-sm text-center">
@@ -931,10 +937,11 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
                   </span>
                 </div>
               ) : (
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
                   onClick={handleMineToSrs}
                   disabled={isSaving || !effectiveUserId}
-                  className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-3 rounded-xl font-bold transition-all disabled:opacity-50 shadow-md dark:shadow-[0_0_15px_rgba(37,99,235,0.3)]"
+                  className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white px-5 py-3 rounded-xl font-bold transition-all disabled:opacity-50 shadow-md"
                 >
                   {isSaving ? (
                     <>
@@ -947,7 +954,7 @@ export default function Reader({ storyContent, storyId, userId }: ReaderProps) {
                       <span>1-Click Add to SRS</span>
                     </>
                   )}
-                </button>
+                </motion.button>
               )}
             </div>
           </motion.div>
