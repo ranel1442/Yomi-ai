@@ -28,11 +28,26 @@ export default function Pwa() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Register Service Worker
+    // Register Service Worker with updateViaCache: 'none' to prevent stale SW/HTML caches
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
-        .register('/sw.js')
-        .then((reg) => console.log('[PWA] Service Worker Registered:', reg.scope))
+        .register('/sw.js', { updateViaCache: 'none' })
+        .then((reg) => {
+          console.log('[PWA] Service Worker Registered:', reg.scope);
+          reg.update().catch(() => {});
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          });
+        })
         .catch((err) => console.error('[PWA] Service Worker Registration Error:', err));
     }
 

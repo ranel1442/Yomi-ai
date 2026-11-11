@@ -191,27 +191,41 @@ function getScoreColor(score: number): string {
 type SelectedUploadKind = 'image' | 'pdf' | 'pptx' | 'odp' | 'txt';
 
 function detectSelectedFileKind(file: File): SelectedUploadKind | null {
-  const name = (file.name || '').toLowerCase();
-  const mime = (file.type || '').toLowerCase();
+  const name = (file.name || '').trim().toLowerCase();
+  const mime = (file.type || '').trim().toLowerCase();
+  const ext = name.includes('.') ? name.split('.').pop() || '' : '';
 
-  if (name.endsWith('.pdf') || mime === 'application/pdf') return 'pdf';
+  if (ext === 'pdf' || name.endsWith('.pdf') || mime === 'application/pdf') {
+    return 'pdf';
+  }
   if (
+    ext === 'pptx' ||
+    ext === 'ppt' ||
     name.endsWith('.pptx') ||
+    name.endsWith('.ppt') ||
     mime ===
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+    mime === 'application/vnd.ms-powerpoint' ||
+    mime.includes('presentation') ||
+    mime.includes('powerpoint')
   ) {
     return 'pptx';
   }
   if (
+    ext === 'odp' ||
     name.endsWith('.odp') ||
-    mime === 'application/vnd.oasis.opendocument.presentation'
+    mime === 'application/vnd.oasis.opendocument.presentation' ||
+    mime.includes('opendocument.presentation')
   ) {
     return 'odp';
   }
-  if (name.endsWith('.txt') || mime === 'text/plain') return 'txt';
+  if (ext === 'txt' || name.endsWith('.txt') || mime === 'text/plain') {
+    return 'txt';
+  }
   if (
+    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'bmp'].includes(ext) ||
     mime.startsWith('image/') ||
-    /\.(jpe?g|png|webp|gif|bmp)$/i.test(name)
+    /\.(jpe?g|png|webp|gif|avif|bmp)$/i.test(name)
   ) {
     return 'image';
   }
@@ -306,6 +320,7 @@ export default function MangaVisionStudioPage() {
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const recognitionRef = useRef<WebSpeechRecognition | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const docInputRef = useRef<HTMLInputElement | null>(null);
   const bubbleCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -1237,13 +1252,13 @@ export default function MangaVisionStudioPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Multi-Page Chapter Uploader */}
           <div className="lg:col-span-8 bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 rounded-3xl p-5 sm:p-7 shadow-sm flex flex-col gap-5">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <h2 className="text-lg font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
                 <ImagePlus className="text-indigo-500" size={20} />
-                יצירת פרק מנגה אינטראקטיבי מרצף תמונות
+                יצירת פרק מנגה אינטראקטיבי (PDF, מצגת PowerPoint, טקסט או תמונות)
               </h2>
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                מיון מספרי אוטומטי (`p01`..`p35`)
+                תומך ב-`.pdf`, `.pptx`, `.odp`, `.txt` ורצף תמונות (`p01`..`p35`)
               </span>
             </div>
 
@@ -1365,7 +1380,20 @@ export default function MangaVisionStudioPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,.pdf,.pptx,.odp,.txt,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.oasis.opendocument.presentation,text/plain"
+                accept="image/*,.pdf,.pptx,.ppt,.odp,.txt,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.oasis.opendocument.presentation,text/plain"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.length) {
+                    addFilesToSelection(e.target.files);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <input
+                ref={docInputRef}
+                type="file"
+                accept=".pdf,.pptx,.ppt,.odp,.txt,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.oasis.opendocument.presentation,text/plain,image/*"
                 multiple
                 className="hidden"
                 onChange={(e) => {
@@ -1377,12 +1405,37 @@ export default function MangaVisionStudioPage() {
               />
               <Upload className="mx-auto text-indigo-500 mb-2.5" size={34} />
               <p className="font-extrabold text-gray-800 dark:text-gray-100 text-sm sm:text-base">
-                גרור לכאן תמונות, קובץ PDF, מצגת PowerPoint או טקסט
+                גרור לכאן קובץ PDF, מצגת PowerPoint (.pptx / .odp), קובץ טקסט (.txt) או תמונות פרק
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 חילוץ עמודים אוטומטי ממצגות Google Slides / PowerPoint (`.pptx` / `.odp`), קובצי `.pdf`, תסריטי `.txt` ורצף תמונות (`p01`..`p35`)
               </p>
-              <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
+
+              {/* Two Explicit Action Buttons inside the Dropzone */}
+              <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-extrabold shadow-md transition-all cursor-pointer"
+                >
+                  🖼️ בחר תמונות פרק
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    docInputRef.current?.click();
+                  }}
+                  className="px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-cyan-300 border border-indigo-200 dark:border-indigo-500/40 text-xs sm:text-sm font-extrabold shadow-sm transition-all cursor-pointer"
+                >
+                  📄 בחר קובץ PDF / מצגת (.pptx) / טקסט
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-1.5 mt-4">
                 <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
                   PDF
                 </span>

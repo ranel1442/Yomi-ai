@@ -1,6 +1,5 @@
-const CACHE_NAME = 'yomi-ai-static-v1';
+const CACHE_NAME = 'yomi-pwa-v3';
 const PRECACHE_URLS = [
-  '/',
   '/manifest.webmanifest',
   '/pwa-icon.svg',
   '/icon-192x192.png',
@@ -32,6 +31,12 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -39,29 +44,45 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Cache-first for static assets, fonts, and icons
-  const isStaticAsset =
-    url.pathname.startsWith('/_next/static/') ||
+  // Never intercept API calls
+  if (url.pathname.startsWith('/api/')) return;
+
+  // 1. HTML Navigation, Next.js RSC/Data payloads, and JS/CSS bundles:
+  // ALWAYS Network-First so new deployments appear immediately without stale cache traps!
+  const isNavigationOrAppBundle =
+    request.mode === 'navigate' ||
+    (request.headers.get('accept') || '').includes('text/html') ||
+    url.pathname.startsWith('/_next/data/') ||
+    url.pathname.startsWith('/_next/static/');
+
+  if (isNavigationOrAppBundle) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // 2. Immutable static icons and fonts only: Network-First with cache fallback
+  const isFontOrIcon =
     url.pathname.endsWith('.woff2') ||
     url.pathname.endsWith('.woff') ||
     url.pathname.endsWith('.ttf') ||
-    url.pathname.endsWith('.svg') ||
-    url.pathname.endsWith('.png');
+    url.pathname === '/pwa-icon.svg' ||
+    url.pathname === '/icon-192x192.png' ||
+    url.pathname === '/icon-512x512.png' ||
+    url.pathname === '/manifest.webmanifest';
 
-  if (isStaticAsset) {
+  if (isFontOrIcon) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request)
-          .then((response) => {
-            if (response && response.status === 200) {
-              const copy = response.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-            }
-            return response;
-          })
-          .catch(() => cached);
-      })
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
     );
   }
 });

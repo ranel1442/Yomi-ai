@@ -1145,12 +1145,18 @@ PAGE SUMMARY:
 - If a splash/cover page has 0 speech bubbles, return an empty "bubbles": [] array and describe the visual splash artwork in "page_summary_hebrew" + any visible SFX in "sfx_list".
 `;
 
+  const hasRasterImage = Boolean(
+    imageBuffer && Buffer.isBuffer(imageBuffer) && mimeType !== 'image/svg+xml'
+  );
+
   const scriptContextBlock = cleanScriptText
-    ? `\nRAW SCRIPT LINES FOR THIS CHAPTER PAGE (Convert each dialogue/narration line in order into a structured bubble!):\n"""\n${cleanScriptText}\n"""\n`
+    ? hasRasterImage
+      ? `\nEXTRACTED SLIDE / PAGE TEXT HINTS (Use these extracted text lines alongside the visual manga page image to ensure 100% accurate transcription and Japanese reconstruction!):\n"""\n${cleanScriptText}\n"""\n`
+      : `\nRAW SCRIPT LINES FOR THIS CHAPTER PAGE (Convert each dialogue/narration line in order into a structured bubble!):\n"""\n${cleanScriptText}\n"""\n`
     : '';
 
   const contentParts = [`${prompt}${scriptContextBlock}`];
-  if (!cleanScriptText && imageBuffer && mimeType !== 'image/svg+xml') {
+  if (hasRasterImage) {
     contentParts.push({
       inlineData: {
         data: imageBuffer.toString('base64'),
