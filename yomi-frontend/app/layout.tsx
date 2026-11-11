@@ -3,7 +3,6 @@
 import './globals.css';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Rubik, Noto_Sans_JP, Noto_Serif_JP } from 'next/font/google';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen,
@@ -34,27 +33,6 @@ import { supabase } from '../services/supabase';
 import { useState, useEffect } from 'react';
 import Footer from '../components/Footer';
 import Pwa from '../components/Pwa';
-
-const rubik = Rubik({
-  subsets: ['hebrew', 'latin'],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--font-rubik',
-  display: 'swap',
-});
-
-const notoSansJp = Noto_Sans_JP({
-  weight: ['400', '500', '700'],
-  preload: false,
-  variable: '--font-noto-sans-jp',
-  display: 'swap',
-});
-
-const notoSerifJp = Noto_Serif_JP({
-  weight: ['400', '600', '700'],
-  preload: false,
-  variable: '--font-noto-serif-jp',
-  display: 'swap',
-});
 
 interface NavModuleItem {
   href: string;
@@ -179,9 +157,7 @@ export default function RootLayout({
     <html
       lang="he"
       dir="rtl"
-      className={`${rubik.variable} ${notoSansJp.variable} ${notoSerifJp.variable} ${
-        isDark ? 'dark' : ''
-      }`}
+      className={isDark ? 'dark' : ''}
     >
       <head>
         <title>Yomi-AI | לימוד יפנית חכם ומנגה</title>
@@ -194,7 +170,7 @@ export default function RootLayout({
         />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;600;700&family=Rubik:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;600;700&family=Rubik:wght@400;500;600;700;800&display=swap"
         />
         <meta name="theme-color" content="#0b1120" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
