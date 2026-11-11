@@ -8,6 +8,7 @@ const supabase = require('../config/supabaseClient');
 const {
   analyzeMangaPageVision,
   evaluateMangaDubAttempt,
+  formatCleanGeminiError,
 } = require('../services/geminiService');
 const { generateAudio, assignCharacterVoices } = require('../services/audioService');
 const { getUserEntitlements } = require('../services/entitlementsService');
@@ -606,13 +607,18 @@ router.post('/chapters/:id/analyze-page/:pageNumber', async (req, res) => {
       error
     );
 
+    const cleanErrMsg = formatCleanGeminiError(
+      error,
+      `שגיאה בניתוח עמוד ${targetPageNum} מול מנוע ה-Vision. לחץ על "נסה שוב".`
+    );
+
     // Best-effort mark page status as 'error'
     await withChapterLock(chapterId, async () => {
       const { chapter, fromMemory } = await fetchChapterById(chapterId);
       if (!chapter) return;
       const errPages = (chapter.pages || []).map((p) =>
         Number(p.page_number) === targetPageNum
-          ? { ...p, status: 'error', error_message: error.message }
+          ? { ...p, status: 'error', error_message: cleanErrMsg }
           : p
       );
       if (!fromMemory) {
@@ -625,8 +631,8 @@ router.post('/chapters/:id/analyze-page/:pageNumber', async (req, res) => {
     }).catch(() => {});
 
     return res.status(500).json({
-      error: `Failed to analyze manga page ${targetPageNum}`,
-      details: error.message,
+      error: cleanErrMsg,
+      details: cleanErrMsg,
     });
   }
 });

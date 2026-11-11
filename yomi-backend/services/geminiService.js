@@ -4,7 +4,156 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env'), quiet: true
 const { kata2Hira, enrichWordsWithKuromoji } = require('./morphologyService');
 const { assignCharacterVoices } = require('./audioService');
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// ============================================================================
+// Multi-Model & Multi-Key Fallback Cascade Engine (Zero-Downtime 429/503 Resilience)
+// ============================================================================
+// Ordered from the newest/smartest verified 200 OK Vision+JSON models on Google's
+// v1beta API down to ultra-fast high-quota Flash-Lite fallbacks. Each model has
+// its own independent daily/minute quota bucket on the same API key!
+const BASE_GEMINI_MODEL_CASCADE = [
+  'gemini-3-flash-preview',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-2.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-lite-latest',
+];
+
+const GEMINI_MODEL_CASCADE = (() => {
+  const customPrimary = String(process.env.GEMINI_PRIMARY_MODEL || '').trim();
+  if (!customPrimary) return [...BASE_GEMINI_MODEL_CASCADE];
+  return [
+    customPrimary,
+    ...BASE_GEMINI_MODEL_CASCADE.filter((m) => m !== customPrimary),
+  ];
+})();
+
+const genAiClientCache = new Map();
+// Maps `${keyIndex}:${modelName}` -> { until: number, kind: string }
+const exhaustedModelsMap = new Map();
+
+function getGeminiApiKeys() {
+  const raw =
+    process.env.GEMINI_API_KEYS ||
+    process.env.GEMINI_API_KEY ||
+    '';
+  const keys = String(raw)
+    .split(',')
+    .map((k) => k.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
+  return [...new Set(keys)];
+}
+
+function getGenAiClient(apiKey) {
+  if (!genAiClientCache.has(apiKey)) {
+    genAiClientCache.set(apiKey, new GoogleGenerativeAI(apiKey));
+  }
+  return genAiClientCache.get(apiKey);
+}
+
+function classifyGeminiError(error) {
+  const status = Number(error?.status || error?.httpStatus || 0);
+  const msg = String(error?.message || '').toLowerCase();
+
+  if (
+    status === 404 ||
+    msg.includes('404') ||
+    msg.includes('not found') ||
+    msg.includes('no longer available') ||
+    msg.includes('is not supported')
+  ) {
+    return {
+      retryable: true,
+      kind: '404_MODEL_UNAVAILABLE',
+      cooldownMs: 24 * 60 * 60 * 1000, // 24 hours
+    };
+  }
+
+  const isQuotaOrRate =
+    status === 429 ||
+    msg.includes('429') ||
+    msg.includes('too many requests') ||
+    msg.includes('quota exceeded') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('exceeded your current quota');
+
+  if (isQuotaOrRate) {
+    const isDailyBucket =
+      msg.includes('free_tier') ||
+      msg.includes('perday') ||
+      msg.includes('per_day') ||
+      msg.includes('generate_content_free_tier_requests') ||
+      msg.includes('exceeded your current quota');
+
+    return {
+      retryable: true,
+      kind: isDailyBucket ? '429_DAILY_QUOTA' : '429_RPM_LIMIT',
+      cooldownMs: isDailyBucket ? 15 * 60 * 1000 : 60 * 1000, // 15m for daily quota, 60s for RPM
+    };
+  }
+
+  if (
+    status === 503 ||
+    status === 500 ||
+    status === 502 ||
+    status === 504 ||
+    msg.includes('503') ||
+    msg.includes('overloaded') ||
+    msg.includes('high demand') ||
+    msg.includes('temporarily unavailable') ||
+    msg.includes('fetch failed')
+  ) {
+    return {
+      retryable: true,
+      kind: '503_HIGH_DEMAND',
+      cooldownMs: 60 * 1000, // 60 seconds
+    };
+  }
+
+  return {
+    retryable: false,
+    kind: 'FATAL_ERROR',
+    cooldownMs: 0,
+  };
+}
+
+/**
+ * Formats any Gemini SDK error into a clean, user-friendly Hebrew message
+ * so raw Google RPC JSON arrays (`QuotaFailure`, `RetryInfo`) never leak to the UI.
+ */
+function formatCleanGeminiError(
+  error,
+  fallbackHebrew = 'אירעה שגיאה בתקשורת מול מנוע ה-AI. נסה שוב בעוד רגע.'
+) {
+  const msg = String(error?.message || '');
+  const lower = msg.toLowerCase();
+
+  if (
+    lower.includes('429') ||
+    lower.includes('quota') ||
+    lower.includes('too many requests') ||
+    lower.includes('resource_exhausted')
+  ) {
+    return 'מכסת הבקשות הזמנית של מנועי ה-AI הגיעה לתקרה בדקה זו. המתן כדקה ולחץ על "נסה שוב".';
+  }
+
+  if (
+    lower.includes('503') ||
+    lower.includes('overloaded') ||
+    lower.includes('high demand')
+  ) {
+    return 'שרתי ה-AI של Google בעומס רגעי גבוה. לחץ על "נסה שוב" בעוד מספר שניות.';
+  }
+
+  // Strip any raw JSON array dumps (`[{"@type":...}]`) or URLs if present
+  if (msg.includes('[{"@type"') || msg.includes('generativelanguage.googleapis.com')) {
+    return fallbackHebrew;
+  }
+
+  return fallbackHebrew;
+}
+
 
 // Reusable Word Token Schema for Stories & Dialogues
 const WORD_TOKEN_SCHEMA = {
@@ -332,36 +481,112 @@ function sanitizeWordTokens(rawWords = [], includeJlpt = false) {
   });
 }
 
-async function executeWithRetry(apiCall, maxRetries = 5) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await apiCall();
-    } catch (error) {
-      const isOverloaded =
-        error.status === 503 || (error.message && error.message.includes('503'));
+/**
+ * Executes a Gemini `generateContent` request across the Multi-Model + Multi-Key
+ * Fallback Cascade (`GEMINI_MODEL_CASCADE`).
+ * - Skips any `(apiKey, modelName)` pair currently on cooldown in `0ms`.
+ * - Automatically cascades to the next available model/key on HTTP `429`, `503`, `404`, or transient network errors.
+ */
+async function generateContentWithCascade({
+  contents,
+  generationConfig = {},
+  taskLabel = 'generateContent',
+}) {
+  const apiKeys = getGeminiApiKeys();
+  if (apiKeys.length === 0) {
+    throw new Error('No GEMINI_API_KEY or GEMINI_API_KEYS configured in environment');
+  }
 
-      if (isOverloaded && attempt < maxRetries) {
-        const waitTime = attempt * 5000;
-        console.warn(
-          `[Gemini API] 503 Overloaded (attempt ${attempt}/${maxRetries}). Retrying in ${waitTime / 1000}s...`
-        );
-        await new Promise((resolve) => setTimeout(resolve, waitTime));
+  const now = Date.now();
+  const activePairs = [];
+  const cooledDownPairs = [];
+
+  for (const modelName of GEMINI_MODEL_CASCADE) {
+    for (let keyIdx = 0; keyIdx < apiKeys.length; keyIdx++) {
+      const pairKey = `${keyIdx}:${modelName}`;
+      const cooldown = exhaustedModelsMap.get(pairKey);
+
+      if (cooldown && cooldown.until > now) {
+        if (cooldown.kind !== '404_MODEL_UNAVAILABLE') {
+          cooledDownPairs.push({
+            keyIdx,
+            apiKey: apiKeys[keyIdx],
+            modelName,
+            pairKey,
+            until: cooldown.until,
+          });
+        }
       } else {
-        throw error;
+        if (cooldown) exhaustedModelsMap.delete(pairKey);
+        activePairs.push({
+          keyIdx,
+          apiKey: apiKeys[keyIdx],
+          modelName,
+          pairKey,
+        });
       }
     }
   }
+
+  // If every single active model is currently on short cooldown, sort cooled-down pairs
+  // by earliest expiration and try them after a brief 1.5s breather
+  let candidateQueue = activePairs;
+  if (candidateQueue.length === 0 && cooledDownPairs.length > 0) {
+    cooledDownPairs.sort((a, b) => a.until - b.until);
+    await new Promise((r) => setTimeout(r, 1500));
+    candidateQueue = cooledDownPairs;
+  }
+
+  let lastError = null;
+
+  for (let i = 0; i < candidateQueue.length; i++) {
+    const { keyIdx, apiKey, modelName, pairKey } = candidateQueue[i];
+    try {
+      const client = getGenAiClient(apiKey);
+      const model = client.getGenerativeModel({
+        model: modelName,
+        generationConfig,
+      });
+
+      const result = await model.generateContent(contents);
+      exhaustedModelsMap.delete(pairKey);
+
+      if (i > 0) {
+        console.log(
+          `[GeminiCascade] ✅ Succeeded on fallback model "${modelName}" (key #${keyIdx + 1}) for ${taskLabel}`
+        );
+      }
+      return result;
+    } catch (error) {
+      lastError = error;
+      const classification = classifyGeminiError(error);
+
+      if (classification.retryable) {
+        exhaustedModelsMap.set(pairKey, {
+          until: Date.now() + classification.cooldownMs,
+          kind: classification.kind,
+        });
+        const cooldownSec = Math.round(classification.cooldownMs / 1000);
+        const nextCandidate = candidateQueue[i + 1];
+        console.warn(
+          `[GeminiCascade] ⚠️ ${modelName} (key #${keyIdx + 1}) hit ${classification.kind} during ${taskLabel} -> cooldown ${cooldownSec}s.${
+            nextCandidate
+              ? ` Falling back immediately to ${nextCandidate.modelName}...`
+              : ' No more fallback candidates in pool.'
+          }`
+        );
+        continue;
+      }
+
+      // Non-retryable error (e.g., invalid argument / schema error)
+      throw error;
+    }
+  }
+
+  throw lastError || new Error(`All Gemini models in cascade failed for ${taskLabel}`);
 }
 
 async function generateJapaneseStory(hebrewText, level = 'N5') {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: STORY_RESPONSE_SCHEMA,
-    },
-  });
-
   const prompt = `
 You are an elite Japanese linguistics professor and native author teaching a Hebrew speaker.
 Create an engaging, natural Japanese story based on the provided Hebrew topic/text at JLPT level ${level}.
@@ -385,7 +610,14 @@ Hebrew input:
 `;
 
   try {
-    const result = await executeWithRetry(() => model.generateContent(prompt));
+    const result = await generateContentWithCascade({
+      contents: prompt,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: STORY_RESPONSE_SCHEMA,
+      },
+      taskLabel: 'generateJapaneseStory',
+    });
     const parsed = JSON.parse(cleanJsonText(result.response.text()));
 
     parsed.sentences = (parsed.sentences || []).map((sentence) => {
@@ -403,7 +635,7 @@ Hebrew input:
     return parsed;
   } catch (error) {
     console.error('Error generating content with Gemini:', error);
-    throw new Error('Failed to generate story with Gemini AI');
+    throw new Error(formatCleanGeminiError(error, 'שגיאה ביצירת הסיפור מול מנוע ה-AI.'));
   }
 }
 
@@ -440,14 +672,6 @@ async function generateMangaDialogue({
   const resolvedStyle = DIALOGUE_STYLE_GUIDES[style] ? style : 'casual_tameguchi';
   const styleInstructions = DIALOGUE_STYLE_GUIDES[resolvedStyle];
 
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: DIALOGUE_RESPONSE_SCHEMA,
-    },
-  });
-
   const prompt = `
 You are an elite Japanese manga scriptwriter, voice-acting director, and Japanese linguistics Sensei teaching a Hebrew speaker.
 Write an engaging 6-to-8 turn Japanese dialogue scene based on the user's topic at JLPT level ${level}.
@@ -470,7 +694,14 @@ User scene topic (Hebrew or English):
 `;
 
   try {
-    const result = await executeWithRetry(() => model.generateContent(prompt));
+    const result = await generateContentWithCascade({
+      contents: prompt,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: DIALOGUE_RESPONSE_SCHEMA,
+      },
+      taskLabel: 'generateMangaDialogue',
+    });
     const parsed = JSON.parse(cleanJsonText(result.response.text()));
 
     const characters = assignCharacterVoices(parsed.characters || []);
@@ -509,19 +740,11 @@ User scene topic (Hebrew or English):
     };
   } catch (error) {
     console.error('Error generating manga dialogue with Gemini:', error);
-    throw new Error('Failed to generate manga dialogue with Gemini AI');
+    throw new Error(formatCleanGeminiError(error, 'שגיאה ביצירת הדיאלוג מול מנוע ה-AI.'));
   }
 }
 
 async function analyzeImportedPassage({ text, morphologyHints }) {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: ANALYZE_PASSAGE_SCHEMA,
-    },
-  });
-
   const compactSentenceHints = (morphologyHints?.sentenceHints || []).map((s) => ({
     japanese: s.japanese,
     tokens: s.tokens.map((t) => `${t.surface}[${t.reading}|lemma:${t.lemma}]`).join(' '),
@@ -570,7 +793,14 @@ INSTRUCTIONS:
 `;
 
   try {
-    const result = await executeWithRetry(() => model.generateContent(prompt));
+    const result = await generateContentWithCascade({
+      contents: prompt,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: ANALYZE_PASSAGE_SCHEMA,
+      },
+      taskLabel: 'analyzeImportedPassage',
+    });
     const parsed = JSON.parse(cleanJsonText(result.response.text()));
 
     const sentences = (parsed.sentences || []).map((sentence) => {
@@ -618,19 +848,11 @@ INSTRUCTIONS:
     };
   } catch (error) {
     console.error('Error analyzing passage with Gemini:', error);
-    throw new Error('Failed to analyze Japanese passage with Gemini AI');
+    throw new Error(formatCleanGeminiError(error, 'שגיאה בניתוח הקטע היפני מול מנוע ה-AI.'));
   }
 }
 
 async function analyzeWordInContext({ word, contextSentence = '', kuromojiHint = null }) {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: WORD_ANALYSIS_SCHEMA,
-    },
-  });
-
   const hintBlock = kuromojiHint
     ? `Morphological parser hint: ${JSON.stringify(kuromojiHint)}`
     : '';
@@ -654,7 +876,14 @@ Return the structured JSON analysis:
 `;
 
   try {
-    const result = await executeWithRetry(() => model.generateContent(prompt));
+    const result = await generateContentWithCascade({
+      contents: prompt,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: WORD_ANALYSIS_SCHEMA,
+      },
+      taskLabel: 'analyzeWordInContext',
+    });
     const parsed = JSON.parse(cleanJsonText(result.response.text()));
     return {
       kanji: String(parsed.kanji || word).trim(),
@@ -667,19 +896,11 @@ Return the structured JSON analysis:
     };
   } catch (error) {
     console.error('Error analyzing word in context with Gemini:', error);
-    throw new Error('Failed to analyze word with Gemini AI');
+    throw new Error(formatCleanGeminiError(error, 'שגיאה בניתוח המילה בהקשר.'));
   }
 }
 
 async function generateStoryQuiz(storyText) {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: QUIZ_RESPONSE_SCHEMA,
-    },
-  });
-
   const prompt = `
 You are an expert Japanese teacher.
 Create a short reading comprehension quiz based on the following Japanese story.
@@ -690,20 +911,22 @@ Story text:
 `;
 
   try {
-    const result = await executeWithRetry(() => model.generateContent(prompt));
+    const result = await generateContentWithCascade({
+      contents: prompt,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: QUIZ_RESPONSE_SCHEMA,
+      },
+      taskLabel: 'generateStoryQuiz',
+    });
     return JSON.parse(cleanJsonText(result.response.text()));
   } catch (error) {
     console.error('Error generating quiz with Gemini:', error);
-    throw new Error('Failed to generate quiz with Gemini AI');
+    throw new Error(formatCleanGeminiError(error, 'שגיאה ביצירת חידון הבנת הנקרא.'));
   }
 }
 
 async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, mimeType, lyricsText }) {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: { responseMimeType: 'application/json' },
-  });
-
   const originalAudioPart = {
     inlineData: { data: originalAudioBuffer.toString('base64'), mimeType },
   };
@@ -742,9 +965,11 @@ async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, m
     console.log(
       `Gemini Pass 1: Filling timestamps for ${lines.length} strict lines with gap detection & English support...`
     );
-    const draftResult = await executeWithRetry(() =>
-      model.generateContent([initialPrompt, originalAudioPart])
-    );
+    const draftResult = await generateContentWithCascade({
+      contents: [initialPrompt, originalAudioPart],
+      generationConfig: { responseMimeType: 'application/json' },
+      taskLabel: 'syncLyricsWithAudio_Pass1',
+    });
     const draftText = cleanJsonText(draftResult.response.text());
 
     const refinePrompt = `
@@ -765,9 +990,11 @@ async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, m
     console.log(
       'Gemini Pass 2: Refining precise timings, supporting English, and cutting out instrumental gaps...'
     );
-    const finalResult = await executeWithRetry(() =>
-      model.generateContent([refinePrompt, filteredAudioPart])
-    );
+    const finalResult = await generateContentWithCascade({
+      contents: [refinePrompt, filteredAudioPart],
+      generationConfig: { responseMimeType: 'application/json' },
+      taskLabel: 'syncLyricsWithAudio_Pass2',
+    });
     const finalText = cleanJsonText(finalResult.response.text());
 
     return JSON.parse(finalText);
@@ -778,11 +1005,6 @@ async function syncLyricsWithAudio({ originalAudioBuffer, filteredAudioBuffer, m
 }
 
 async function translateJapaneseWords(wordsArray) {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: { responseMimeType: 'application/json' },
-  });
-
   const prompt = `
   You are an expert Japanese to Hebrew translator.
   I will give you a JSON array of Japanese words. 
@@ -794,7 +1016,11 @@ async function translateJapaneseWords(wordsArray) {
   `;
 
   try {
-    const result = await executeWithRetry(() => model.generateContent(prompt));
+    const result = await generateContentWithCascade({
+      contents: prompt,
+      generationConfig: { responseMimeType: 'application/json' },
+      taskLabel: 'translateJapaneseWords',
+    });
     return JSON.parse(cleanJsonText(result.response.text()));
   } catch (error) {
     console.error('Translation error:', error);
@@ -809,14 +1035,6 @@ async function generateTrainerChallenge({ targetCard, mode = 'mixed' }) {
       : Math.random() < 0.6
       ? 'translation'
       : 'scenario';
-
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: TRAINER_CHALLENGE_SCHEMA,
-    },
-  });
 
   const lemma = targetCard.lemma || targetCard.kanji;
   const reading = targetCard.reading || '';
@@ -853,7 +1071,14 @@ STRICT OUTPUT RULES:
 `;
 
   try {
-    const result = await executeWithRetry(() => model.generateContent(prompt));
+    const result = await generateContentWithCascade({
+      contents: prompt,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: TRAINER_CHALLENGE_SCHEMA,
+      },
+      taskLabel: 'generateTrainerChallenge',
+    });
     const parsed = JSON.parse(cleanJsonText(result.response.text()));
     return {
       challenge_mode: resolvedMode,
@@ -872,7 +1097,7 @@ STRICT OUTPUT RULES:
     };
   } catch (error) {
     console.error('Error generating trainer challenge with Gemini:', error);
-    throw new Error('Failed to generate active output challenge');
+    throw new Error(formatCleanGeminiError(error, 'שגיאה ביצירת אתגר התרגול הפעיל.'));
   }
 }
 
@@ -885,14 +1110,6 @@ async function evaluateTrainerOutput({
   userSentenceJapanese = '',
   kuromojiTokens = [],
 }) {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: TRAINER_EVAL_SCHEMA,
-    },
-  });
-
   const clampScore = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
 
   const prompt = `
@@ -925,7 +1142,14 @@ EVALUATION GUIDELINES:
 `;
 
   try {
-    const result = await executeWithRetry(() => model.generateContent(prompt));
+    const result = await generateContentWithCascade({
+      contents: prompt,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: TRAINER_EVAL_SCHEMA,
+      },
+      taskLabel: 'evaluateTrainerOutput',
+    });
     const parsed = JSON.parse(cleanJsonText(result.response.text()));
 
     const grammarScore = clampScore(parsed.grammar_score);
@@ -946,7 +1170,7 @@ EVALUATION GUIDELINES:
     };
   } catch (error) {
     console.error('Error evaluating trainer output with Gemini:', error);
-    throw new Error('Failed to evaluate Japanese sentence with Gemini AI');
+    throw new Error(formatCleanGeminiError(error, 'שגיאה בבדיקת המשפט מול הסנסיי.'));
   }
 }
 
@@ -1071,14 +1295,6 @@ async function analyzeMangaPageVision({
   const resolvedTrack =
     sourceLanguage === 'ja_raw' ? 'ja_raw' : 'he_en_translated';
 
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: MANGA_PAGE_VISION_SCHEMA,
-    },
-  });
-
   const knownRosterHint =
     Array.isArray(knownCharacters) && knownCharacters.length > 0
       ? `EXISTING CHAPTER CHARACTER ROSTER (REUSE THESE EXACT IDs & NAMES WHENEVER THE SAME CHARACTER SPEAKS ON THIS PAGE!):
@@ -1166,9 +1382,15 @@ PAGE SUMMARY:
   }
 
   try {
-    const result = await executeWithRetry(() =>
-      model.generateContent(contentParts)
-    );
+    // Strictly 1 Gemini API call per page (routed through Multi-Model Cascade)
+    const result = await generateContentWithCascade({
+      contents: contentParts,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: MANGA_PAGE_VISION_SCHEMA,
+      },
+      taskLabel: `analyzeMangaPageVision(${chapterTitle || 'page'})`,
+    });
     const parsed = JSON.parse(cleanJsonText(result.response.text()));
 
     // Normalize detected characters
@@ -1180,8 +1402,19 @@ PAGE SUMMARY:
       personality: String(c.personality || '').trim(),
     }));
 
-    // Enrich every bubble deterministically with local Kuromoji (`morphologyService.js`)
+    // Build a local contextual meaning lookup from the page's own tokens so we NEVER
+    // need a second Gemini `translateJapaneseWords` request per page!
     const rawBubbles = Array.isArray(parsed.bubbles) ? parsed.bubbles : [];
+    const localPageMeaningMap = new Map();
+    for (const rb of rawBubbles) {
+      for (const rw of Array.isArray(rb?.words) ? rb.words : []) {
+        const m = String(rw?.meaning || '').trim();
+        if (!m) continue;
+        if (rw.lemma) localPageMeaningMap.set(String(rw.lemma).trim(), m);
+        if (rw.kanji) localPageMeaningMap.set(String(rw.kanji).trim(), m);
+      }
+    }
+
     const enrichedBubbles = [];
 
     for (let i = 0; i < rawBubbles.length; i++) {
@@ -1191,29 +1424,13 @@ PAGE SUMMARY:
       const { words: kuromojiVerifiedWords, sentenceFurigana } =
         await enrichWordsWithKuromoji(cleanJa, sanitizedCandidates);
 
-      // If any fallback content token lacked a Hebrew meaning, translate in one batch
-      const missingMeaningSurfaces = [
-        ...new Set(
-          kuromojiVerifiedWords
-            .filter(
-              (w) =>
-                w.type !== 'punctuation' &&
-                w.type !== 'particle' &&
-                !w.meaning &&
-                w.lemma
-            )
-            .map((w) => w.lemma)
-        ),
-      ];
-
-      let fallbackTranslations = {};
-      if (missingMeaningSurfaces.length > 0) {
-        fallbackTranslations = await translateJapaneseWords(missingMeaningSurfaces);
-      }
-
       const finalWords = kuromojiVerifiedWords.map((w) => ({
         ...w,
-        meaning: w.meaning || fallbackTranslations[w.lemma] || '',
+        meaning:
+          w.meaning ||
+          localPageMeaningMap.get(w.lemma) ||
+          localPageMeaningMap.get(w.kanji) ||
+          '',
       }));
 
       const speakerGender =
@@ -1270,7 +1487,12 @@ PAGE SUMMARY:
     };
   } catch (error) {
     console.error('Error analyzing manga page vision with Gemini:', error);
-    throw new Error(`Failed to analyze manga page vision: ${error.message}`);
+    throw new Error(
+      formatCleanGeminiError(
+        error,
+        'שגיאה בניתוח העמוד מול מנוע ה-Vision. לחץ על "נסה שוב".'
+      )
+    );
   }
 }
 
@@ -1286,14 +1508,6 @@ async function evaluateMangaDubAttempt({
   userSentenceJapanese = '',
   kuromojiTokens = [],
 }) {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: MANGA_DUB_EVAL_SCHEMA,
-    },
-  });
-
   const clampScore = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
 
   const prompt = `
@@ -1324,7 +1538,14 @@ EVALUATION RULES:
 `;
 
   try {
-    const result = await executeWithRetry(() => model.generateContent(prompt));
+    const result = await generateContentWithCascade({
+      contents: prompt,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: MANGA_DUB_EVAL_SCHEMA,
+      },
+      taskLabel: 'evaluateMangaDubAttempt',
+    });
     const parsed = JSON.parse(cleanJsonText(result.response.text()));
 
     const grammarScore = clampScore(parsed.grammar_score);
@@ -1345,7 +1566,7 @@ EVALUATION RULES:
     };
   } catch (error) {
     console.error('Error evaluating manga dubbing attempt:', error);
-    throw new Error('Failed to evaluate manga dubbing attempt with Gemini AI');
+    throw new Error(formatCleanGeminiError(error, 'שגיאה בבדיקת הדיבוב מול הסנסיי.'));
   }
 }
 
@@ -1361,6 +1582,9 @@ module.exports = {
   evaluateTrainerOutput,
   analyzeMangaPageVision,
   evaluateMangaDubAttempt,
+  generateContentWithCascade,
+  formatCleanGeminiError,
+  GEMINI_MODEL_CASCADE,
   STORY_RESPONSE_SCHEMA,
   DIALOGUE_RESPONSE_SCHEMA,
   ANALYZE_PASSAGE_SCHEMA,

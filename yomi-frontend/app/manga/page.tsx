@@ -238,6 +238,27 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function sanitizeMangaErrorMessage(raw?: string): string {
+  if (!raw) {
+    return 'אירעה שגיאה זמנית בניתוח העמוד מול מנוע ה-AI. לחץ על הכפתור למטה כדי לנסות שוב.';
+  }
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes('429') ||
+    lower.includes('quota') ||
+    lower.includes('too many requests') ||
+    lower.includes('resource_exhausted') ||
+    raw.includes('[{"@type"') ||
+    raw.includes('generativelanguage.googleapis.com')
+  ) {
+    return 'מכסת הבקשות הזמנית של מנוע ה-AI הגיעה לתקרה בדקה זו (המערכת עוברת אוטומטית למודל גיבוי). לחץ על "נסה לנתח עמוד זה שוב".';
+  }
+  if (lower.includes('503') || lower.includes('overloaded') || lower.includes('high demand')) {
+    return 'שרתי ה-AI של Google בעומס רגעי. לחץ על "נסה לנתח עמוד זה שוב" בעוד מספר שניות.';
+  }
+  return raw;
+}
+
 export default function MangaVisionStudioPage() {
   const { user, isPro, isAdmin, loading: authLoading } = useAuth();
   const { lookupWord, upsertCardInMap } = useVocabularyMap(user?.id);
@@ -272,9 +293,10 @@ export default function MangaVisionStudioPage() {
     {}
   );
 
-  // Sequential Vision Queue States
+  // Sequential Vision Queue States (Smart 2-Page Lookahead by default; optional Full-Chapter Background Queue)
   const [isQueueRunning, setIsQueueRunning] = useState<boolean>(false);
   const [isQueuePaused, setIsQueuePaused] = useState<boolean>(false);
+  const [autoAnalyzeAllPages, setAutoAnalyzeAllPages] = useState<boolean>(false);
   const [currentlyAnalyzingPage, setCurrentlyAnalyzingPage] = useState<number | null>(
     null
   );
@@ -313,6 +335,8 @@ export default function MangaVisionStudioPage() {
 
   // Refs for async queues, audio, speech & DOM
   const activeChapterRef = useRef<MangaChapter | null>(null);
+  const currentPageNumRef = useRef<number>(1);
+  const autoAnalyzeAllPagesRef = useRef<boolean>(false);
   const queuePausedRef = useRef<boolean>(false);
   const priorityPageRef = useRef<number | null>(null);
   const queueWorkerActiveRef = useRef<boolean>(false);
@@ -326,6 +350,14 @@ export default function MangaVisionStudioPage() {
   useEffect(() => {
     activeChapterRef.current = activeChapter;
   }, [activeChapter]);
+
+  useEffect(() => {
+    currentPageNumRef.current = currentPageNum;
+  }, [currentPageNum]);
+
+  useEffect(() => {
+    autoAnalyzeAllPagesRef.current = autoAnalyzeAllPages;
+  }, [autoAnalyzeAllPages]);
 
   useEffect(() => {
     queuePausedRef.current = isQueuePaused;
@@ -572,8 +604,20 @@ export default function MangaVisionStudioPage() {
         );
         return true;
       } catch (err: unknown) {
-        const errMsg =
-          err instanceof Error ? err.message : 'שגיאה בניתוח העמוד מול Gemini Vision';
+        let rawMsg = 'שגיאה בניתוח העמוד מול Gemini Vision';
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'response' in err &&
+          typeof (err as { response?: { data?: { error?: string; details?: string } } }).response
+            ?.data?.error === 'string'
+        ) {
+          rawMsg =
+            (err as { response: { data: { error: string } } }).response.data.error;
+        } else if (err instanceof Error) {
+          rawMsg = err.message;
+        }
+        const errMsg = sanitizeMangaErrorMessage(rawMsg);
         updateSinglePageInState(chapterId, pageNum, (p) => ({
           ...p,
           status: 'error',
@@ -605,7 +649,7 @@ export default function MangaVisionStudioPage() {
             continue;
           }
 
-          // Check if user clicked a specific pending page (`priorityPageRef`)
+          // 1. Check if user explicitly clicked a specific pending page (`priorityPageRef`)
           let nextTargetPage: MangaPageItem | undefined;
           if (priorityPageRef.current !== null) {
             const requested = priorityPageRef.current;
@@ -615,12 +659,31 @@ export default function MangaVisionStudioPage() {
             );
           }
 
+          // 2. Smart 2-Page Lookahead Window: Current Page (`N`) + Immediate Next Page (`N + 1`)
           if (!nextTargetPage) {
+            const activePageNum = currentPageNumRef.current || 1;
+            const lookaheadWindow = [activePageNum, activePageNum + 1];
+            for (const candidatePageNum of lookaheadWindow) {
+              const found = liveChapter.pages.find(
+                (p) =>
+                  Number(p.page_number) === candidatePageNum &&
+                  p.status === 'pending'
+              );
+              if (found) {
+                nextTargetPage = found;
+                break;
+              }
+            }
+          }
+
+          // 3. Only if user toggled "⚡ נתח את כל העמודים ברקע" (`autoAnalyzeAllPages`),
+          // continue analyzing all remaining pending pages in the chapter sequentially
+          if (!nextTargetPage && autoAnalyzeAllPagesRef.current) {
             nextTargetPage = liveChapter.pages.find((p) => p.status === 'pending');
           }
 
           if (!nextTargetPage) {
-            break; // All pages analyzed!
+            break; // Lookahead window (or full chapter) is ready!
           }
 
           await analyzeSinglePageNow(
@@ -636,6 +699,28 @@ export default function MangaVisionStudioPage() {
     },
     [analyzeSinglePageNow]
   );
+
+  // Trigger Smart 2-Page Lookahead (`currentPageNum` + `currentPageNum + 1`) whenever
+  // the user turns a page or toggles `autoAnalyzeAllPages`
+  useEffect(() => {
+    if (!activeChapter || showUploaderPanel || isQueuePaused) return;
+    const lookaheadNums = [currentPageNum, currentPageNum + 1];
+    const hasPendingInWindow = activeChapter.pages.some(
+      (p) =>
+        p.status === 'pending' &&
+        (autoAnalyzeAllPages || lookaheadNums.includes(Number(p.page_number)))
+    );
+    if (hasPendingInWindow && !queueWorkerActiveRef.current) {
+      startSequentialBackgroundQueue(activeChapter);
+    }
+  }, [
+    activeChapter,
+    currentPageNum,
+    autoAnalyzeAllPages,
+    isQueuePaused,
+    showUploaderPanel,
+    startSequentialBackgroundQueue,
+  ]);
 
   // Create Chapter & Kick Off Page 1 + Sequential Queue
   const handleStartChapterUpload = async () => {
@@ -1216,7 +1301,7 @@ export default function MangaVisionStudioPage() {
                 אולפן מנגה (Vision & Reverse-Immersion)
               </h1>
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
-                Gemini 2.5 Vision + Neural2
+                Gemini 3 / 3.6 Multi-Model Vision + Neural2
               </span>
             </div>
             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
@@ -1563,8 +1648,8 @@ export default function MangaVisionStudioPage() {
                     <Sparkles size={20} />
                     <span>
                       {hasDocumentSelected
-                        ? 'חלץ עמודים מהקובץ והתחל ניתוח חכם (עמוד 1 מיד + השאר ברקע)'
-                        : 'העלה פרק והתחל ניתוח חכם (עמוד 1 מיד + השאר ברקע)'}
+                        ? 'חלץ עמודים מהקובץ והתחל ניתוח חכם (עמוד נוכחי + הבא מראש)'
+                        : 'העלה פרק והתחל ניתוח חכם (עמוד נוכחי + הבא מראש)'}
                     </span>
                   </>
                 )}
@@ -1678,7 +1763,36 @@ export default function MangaVisionStudioPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {analyzedPagesCount < activeChapter.total_pages && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextVal = !autoAnalyzeAllPages;
+                    setAutoAnalyzeAllPages(nextVal);
+                    if (nextVal) {
+                      setIsQueuePaused(false);
+                      queuePausedRef.current = false;
+                      showToast('ניתוח אוטומטי של כל עמודי הפרק ברקע הופעל ⚡');
+                    } else {
+                      showToast('מצב חכם פעיל: מנתח רק את העמוד הנוכחי והעמוד הבא (חיסכון במכסת API)');
+                    }
+                  }}
+                  title="בברירת מחדל מנותחים רק העמוד הנוכחי והעמוד הבא כדי לחסוך במכסת ה-AI"
+                  className={`text-xs font-extrabold px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${
+                    autoAnalyzeAllPages
+                      ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 shadow-sm'
+                      : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'
+                  }`}
+                >
+                  <Zap size={13} className={autoAnalyzeAllPages ? 'text-amber-500' : 'text-gray-400'} />
+                  <span>
+                    {autoAnalyzeAllPages
+                      ? '⚡ ניתוח כל העמודים ברקע: פעיל'
+                      : '⚡ נתח את כל העמודים ברקע'}
+                  </span>
+                </button>
+              )}
               {isQueueRunning && analyzedPagesCount < activeChapter.total_pages && (
                 <button
                   type="button"
@@ -1974,8 +2088,8 @@ export default function MangaVisionStudioPage() {
                         <h3 className="font-extrabold text-base text-gray-900 dark:text-white">
                           ניתוח עמוד {currentPage.page_number} נכשל
                         </h3>
-                        <p className="text-xs text-gray-500 max-w-md">
-                          {currentPage.error_message || 'אירעה שגיאה מול Gemini Vision'}
+                        <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md leading-relaxed">
+                          {sanitizeMangaErrorMessage(currentPage.error_message)}
                         </p>
                         <button
                           type="button"
@@ -1986,7 +2100,7 @@ export default function MangaVisionStudioPage() {
                               true
                             )
                           }
-                          className="mt-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-extrabold"
+                          className="mt-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold shadow-md transition-all cursor-pointer"
                         >
                           נסה לנתח עמוד זה שוב
                         </button>
@@ -1996,7 +2110,7 @@ export default function MangaVisionStudioPage() {
                         <Loader2 className="animate-spin text-indigo-500" size={40} />
                         <h3 className="font-extrabold text-base text-gray-900 dark:text-white">
                           {currentPage.status === 'analyzing'
-                            ? `מפענח כעת את עמוד ${currentPage.page_number} עם Gemini 2.5 Vision...`
+                            ? `מפענח כעת את עמוד ${currentPage.page_number} עם Gemini Multi-Model Vision...`
                             : `עמוד ${currentPage.page_number} ממתין בתור לניתוח`}
                         </h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md leading-relaxed">
