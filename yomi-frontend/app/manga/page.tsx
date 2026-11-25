@@ -38,8 +38,14 @@ import {
   Lock,
   ImagePlus,
   FileText,
+  Search,
+  Maximize2,
+  Minimize2,
+  PanelLeftOpen,
+  PanelLeftClose,
 } from 'lucide-react';
 import Link from 'next/link';
+import MangaBubblePatch from '../../components/MangaBubblePatch';
 import {
   ContextFuriganaToken,
   DialogueCharacter,
@@ -276,47 +282,9 @@ function isValidBubbleBox2d(
   return ymax - ymin >= 12 && xmax - xmin >= 12;
 }
 
-function computeAdaptiveBubbleFontSizePx(
-  bubble: MangaSpeechBubble,
-  box: [number, number, number, number],
-  imgWidth: number,
-  imgHeight: number,
-  hasRubyInBubble: boolean,
-  direction: 'vertical' | 'horizontal'
-): string {
-  const [ymin, xmin, ymax, xmax] = box;
-  const wNorm = Math.max(12, xmax - xmin) / 1000;
-  const hNorm = Math.max(12, ymax - ymin) / 1000;
-
-  const effImgW = imgWidth > 40 ? imgWidth : 520;
-  const effImgH = imgHeight > 40 ? imgHeight : 740;
-
-  const boxW = Math.max(22, wNorm * effImgW);
-  const boxH = Math.max(22, hNorm * effImgH);
-
-  const charCount = Math.max(1, Array.from(bubble.japanese || '').length);
-  const lineSpacingFactor = hasRubyInBubble ? 1.62 : 1.26;
-  const usableArea = boxW * boxH * 0.56;
-
-  const areaBasedPx = Math.sqrt(usableArea / (charCount * lineSpacingFactor));
-  const shortestSide = Math.min(boxW, boxH);
-  const crossAxisCap = shortestSide * (charCount <= 4 ? 0.42 : 0.35);
-
-  // Ensure single-line/column short shouts never clip along the reading axis
-  const mainAxisLen = direction === 'vertical' ? boxH : boxW;
-  const crossAxisLen = direction === 'vertical' ? boxW : boxH;
-  const estLines = Math.max(1, Math.ceil((charCount * 12) / Math.max(24, mainAxisLen)));
-  const crossFitCap =
-    estLines === 1
-      ? crossAxisLen * (hasRubyInBubble ? 0.54 : 0.68)
-      : (crossAxisLen / estLines) * 0.85;
-
-  const clamped = Math.max(
-    8.5,
-    Math.min(24, areaBasedPx, Math.max(10, crossAxisCap), Math.max(9.5, crossFitCap))
-  );
-  return `${clamped.toFixed(1)}px`;
-}
+const BUBBLE_FONT_SCALE_STORAGE_KEY = 'yomi_manga_bubble_font_scale';
+const BUBBLE_MAGNIFIER_STORAGE_KEY = 'yomi_manga_bubble_magnifier';
+const WIDE_MANGA_MODE_STORAGE_KEY = 'yomi_manga_wide_mode';
 
 export default function MangaVisionStudioPage() {
   const { user, isPro, isAdmin, loading: authLoading } = useAuth();
@@ -352,12 +320,16 @@ export default function MangaVisionStudioPage() {
     {}
   );
 
-  // Live In-Place Japanese Speech Bubble Overlay States
+  // Live In-Place Japanese Speech Bubble Overlay & Readability States
   const [showJapaneseOverlays, setShowJapaneseOverlays] = useState<boolean>(true);
   const [isPeekingOriginal, setIsPeekingOriginal] = useState<boolean>(false);
   const [bubbleDirection, setBubbleDirection] = useState<'vertical' | 'horizontal'>(
     'vertical'
   );
+  const [bubbleFontScale, setBubbleFontScale] = useState<number>(1.0);
+  const [magnifierEnabled, setMagnifierEnabled] = useState<boolean>(true);
+  const [isWideMangaMode, setIsWideMangaMode] = useState<boolean>(false);
+  const [isWideStudyDrawerOpen, setIsWideStudyDrawerOpen] = useState<boolean>(false);
   const [selectedOverlayBubbleKey, setSelectedOverlayBubbleKey] = useState<string | null>(
     null
   );
@@ -544,6 +516,81 @@ export default function MangaVisionStudioPage() {
     if (!activeChapter) return;
     setShowJapaneseOverlays(activeChapter.source_language === 'he_en_translated');
   }, [activeChapter?.id, activeChapter?.source_language]);
+
+  // Hydrate persisted bubble readability preferences (`localStorage`)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedScale = window.localStorage.getItem(BUBBLE_FONT_SCALE_STORAGE_KEY);
+      if (savedScale !== null) {
+        const parsed = Number(savedScale);
+        if (Number.isFinite(parsed) && parsed >= 0.85 && parsed <= 1.5) {
+          setBubbleFontScale(Number(parsed.toFixed(2)));
+        }
+      }
+      const savedMag = window.localStorage.getItem(BUBBLE_MAGNIFIER_STORAGE_KEY);
+      if (savedMag !== null) {
+        setMagnifierEnabled(savedMag === 'true');
+      }
+      const savedWide = window.localStorage.getItem(WIDE_MANGA_MODE_STORAGE_KEY);
+      if (savedWide !== null) {
+        setIsWideMangaMode(savedWide === 'true');
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const updateBubbleFontScale = useCallback((updater: (prev: number) => number) => {
+    setBubbleFontScale((prev) => {
+      const clamped = Math.max(
+        0.85,
+        Math.min(1.5, Number(updater(prev).toFixed(2)))
+      );
+      try {
+        window.localStorage.setItem(BUBBLE_FONT_SCALE_STORAGE_KEY, String(clamped));
+      } catch {
+        // ignore
+      }
+      return clamped;
+    });
+  }, []);
+
+  const toggleMagnifierEnabled = useCallback(() => {
+    setMagnifierEnabled((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(BUBBLE_MAGNIFIER_STORAGE_KEY, String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleWideMangaMode = useCallback(() => {
+    setIsWideMangaMode((prev) => {
+      const next = !prev;
+      if (!next) {
+        setIsWideStudyDrawerOpen(false);
+      }
+      try {
+        window.localStorage.setItem(WIDE_MANGA_MODE_STORAGE_KEY, String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  const activeSelectedOverlayBubble = useMemo(() => {
+    if (!selectedOverlayBubbleKey || !currentPage?.bubbles) return null;
+    return (
+      currentPage.bubbles.find(
+        (b) => `p${currentPage.page_number}_b${b.bubble_index}` === selectedOverlayBubbleKey
+      ) || null
+    );
+  }, [selectedOverlayBubbleKey, currentPage]);
 
   // Track exact rendered dimensions of the active manga page `<img>` across zoom & resize
   useEffect(() => {
@@ -1973,14 +2020,22 @@ export default function MangaVisionStudioPage() {
             </div>
           </div>
 
-          {/* Main Split-Screen Grid */}
+          {/* Main Split-Screen / Wide Immersion Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {/* ============================================================== */}
-            {/* MANGA PAGE VISUAL CANVAS + BOTTOM FILMSTRIP (6 COLS)           */}
+            {/* MANGA PAGE VISUAL CANVAS + BOTTOM FILMSTRIP                    */}
             {/* ============================================================== */}
-            <div className="lg:col-span-6 bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 rounded-3xl overflow-hidden shadow-sm flex flex-col">
+            <div
+              className={`${
+                !isWideMangaMode
+                  ? 'lg:col-span-6'
+                  : isWideStudyDrawerOpen
+                  ? 'lg:col-span-8'
+                  : 'lg:col-span-12'
+              } bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 rounded-3xl overflow-hidden shadow-sm flex flex-col transition-all duration-200`}
+            >
               {/* Canvas Toolbar */}
-              <div className="px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between gap-2 bg-gray-50/80 dark:bg-[#0B0F19]/80">
+              <div className="px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-2 bg-gray-50/80 dark:bg-[#0B0F19]/80">
                 {/* Manga RTL Navigation: Right button = Prev page, Left button = Next page */}
                 <div className="flex items-center gap-1.5">
                   <button
@@ -2010,35 +2065,82 @@ export default function MangaVisionStudioPage() {
                   </button>
                 </div>
 
-                {/* Zoom Controls */}
-                <div className="flex items-center gap-1">
+                {/* Wide Manga Mode Toggle + Study Drawer Toggle + Zoom Controls */}
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => setZoomPercent((z) => Math.max(60, z - 20))}
-                    className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
-                    title="הקטן תצוגה"
+                    onClick={toggleWideMangaMode}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                      isWideMangaMode
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-indigo-400'
+                    }`}
+                    title="הרחב את עמוד המנגה לקריאה נוחה בגודל מלא"
                   >
-                    <ZoomOut size={16} />
+                    {isWideMangaMode ? (
+                      <Minimize2 size={14} />
+                    ) : (
+                      <Maximize2 size={14} />
+                    )}
+                    <span>
+                      {isWideMangaMode ? '📖 מצב רחב פעיל' : '📖 הרחב עמוד מנגה'}
+                    </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setZoomPercent(100)}
-                    className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
-                  >
-                    {zoomPercent}%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setZoomPercent((z) => Math.min(220, z + 20))}
-                    className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
-                    title="הגדל תצוגה"
-                  >
-                    <ZoomIn size={16} />
-                  </button>
+
+                  {isWideMangaMode && (
+                    <button
+                      type="button"
+                      onClick={() => setIsWideStudyDrawerOpen((v) => !v)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                        isWideStudyDrawerOpen
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                          : 'bg-white dark:bg-gray-800 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-50 dark:hover:bg-gray-700'
+                      }`}
+                      title="פתח/סגור את מגירת הסנסיי, הדיבוב ואוצר המילים לצד העמוד הרחב"
+                    >
+                      {isWideStudyDrawerOpen ? (
+                        <PanelLeftClose size={14} />
+                      ) : (
+                        <PanelLeftOpen size={14} />
+                      )}
+                      <span>
+                        {isWideStudyDrawerOpen
+                          ? 'סגור פאנל צד (100%)'
+                          : 'פאנל סנסיי ומילים'}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* Zoom Controls */}
+                  <div className="flex items-center gap-0.5 bg-white dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 rounded-xl px-1 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setZoomPercent((z) => Math.max(60, z - 20))}
+                      className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                      title="הקטן תצוגת דף"
+                    >
+                      <ZoomOut size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setZoomPercent(100)}
+                      className="text-xs font-bold px-2 py-0.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    >
+                      {zoomPercent}%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setZoomPercent((z) => Math.min(220, z + 20))}
+                      className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                      title="הגדל תצוגת דף"
+                    >
+                      <ZoomIn size={15} />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Live Manga Typesetting Controls Strip (Above Manga Image) */}
+              {/* Live Manga Typesetting & Bubble Readability Controls Strip */}
               <div className="px-3.5 py-2 border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-[#111827] flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <button
@@ -2062,6 +2164,23 @@ export default function MangaVisionStudioPage() {
                     </span>
                   </button>
 
+                  {/* Hover / Active Bubble Magnifier Toggle */}
+                  {showJapaneseOverlays && (
+                    <button
+                      type="button"
+                      onClick={toggleMagnifierEnabled}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                        magnifierEnabled
+                          ? 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-800 dark:text-cyan-300 border-cyan-300 dark:border-cyan-700/70 shadow-sm'
+                          : 'bg-gray-50 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700'
+                      }`}
+                      title="מגדיל אוטומטית כל בועה במעבר עכבר או בעת השמעה לקריאה חדה"
+                    >
+                      <Search size={13} />
+                      <span>🔍 זכוכית מגדלת בבועות</span>
+                    </button>
+                  )}
+
                   {showJapaneseOverlays && hasPageOverlays && (
                     <button
                       type="button"
@@ -2081,30 +2200,66 @@ export default function MangaVisionStudioPage() {
                   )}
                 </div>
 
-                {/* Bubble Text Direction Toggle: Vertical (Authentic Manga) vs Horizontal */}
-                <div className="flex items-center gap-1 bg-gray-100 dark:bg-[#0B0F19] p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setBubbleDirection('vertical')}
-                    className={`px-2.5 py-1 rounded-lg font-extrabold transition-all cursor-pointer ${
-                      bubbleDirection === 'vertical'
-                        ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                    }`}
-                  >
-                    אנכי (מנגה מקורית)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBubbleDirection('horizontal')}
-                    className={`px-2.5 py-1 rounded-lg font-extrabold transition-all cursor-pointer ${
-                      bubbleDirection === 'horizontal'
-                        ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                    }`}
-                  >
-                    אופקי (קריאה קלה)
-                  </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Bubble Font Scale Controls (`A-` / `100%` / `A+`) */}
+                  {showJapaneseOverlays && (
+                    <div
+                      dir="ltr"
+                      className="flex items-center gap-0.5 bg-gray-100 dark:bg-[#0B0F19] p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px]"
+                      title="התאם את גודל הכתב היפני בתוך בועות הדיבור (נשמר אוטומטית)"
+                    >
+                      <button
+                        type="button"
+                        disabled={bubbleFontScale <= 0.85}
+                        onClick={() => updateBubbleFontScale((s) => s - 0.1)}
+                        className="px-2 py-0.5 rounded-lg font-extrabold text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 disabled:opacity-40 cursor-pointer"
+                      >
+                        A-
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateBubbleFontScale(() => 1.0)}
+                        className="px-2 py-0.5 rounded-lg font-extrabold text-indigo-700 dark:text-cyan-300 hover:bg-white dark:hover:bg-gray-800 cursor-pointer"
+                        title="אפס ל-100%"
+                      >
+                        {Math.round(bubbleFontScale * 100)}%
+                      </button>
+                      <button
+                        type="button"
+                        disabled={bubbleFontScale >= 1.5}
+                        onClick={() => updateBubbleFontScale((s) => s + 0.1)}
+                        className="px-2 py-0.5 rounded-lg font-extrabold text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 disabled:opacity-40 cursor-pointer"
+                      >
+                        A+
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Bubble Text Direction Toggle: Vertical (Authentic Manga) vs Horizontal */}
+                  <div className="flex items-center gap-1 bg-gray-100 dark:bg-[#0B0F19] p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setBubbleDirection('vertical')}
+                      className={`px-2.5 py-1 rounded-lg font-extrabold transition-all cursor-pointer ${
+                        bubbleDirection === 'vertical'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                      }`}
+                    >
+                      אנכי (מנגה מקורית)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBubbleDirection('horizontal')}
+                      className={`px-2.5 py-1 rounded-lg font-extrabold transition-all cursor-pointer ${
+                        bubbleDirection === 'horizontal'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                      }`}
+                    >
+                      אופקי (קריאה קלה)
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2131,11 +2286,23 @@ export default function MangaVisionStudioPage() {
                 </div>
               )}
 
-              {/* Manga Image Viewport (Responsive Mobile & Desktop Height) */}
-              <div className="relative bg-slate-950 h-[52vh] sm:h-[64vh] min-h-[340px] sm:min-h-[460px] max-h-[760px] overflow-auto flex items-start justify-center p-2.5 sm:p-3">
+              {/* Manga Image Viewport (Expands Tall & Wide in Wide Manga Mode!) */}
+              <div
+                className={`relative bg-slate-950 ${
+                  isWideMangaMode
+                    ? 'h-[72vh] sm:h-[82vh] min-h-[460px] max-h-[980px]'
+                    : 'h-[52vh] sm:h-[64vh] min-h-[340px] sm:min-h-[460px] max-h-[760px]'
+                } overflow-auto flex items-start justify-center p-2.5 sm:p-4 transition-all`}
+              >
                 {currentPage ? (
                   <div
-                    style={{ width: `${zoomPercent}%` }}
+                    style={{
+                      width: `${zoomPercent}%`,
+                      maxWidth:
+                        isWideMangaMode && !isWideStudyDrawerOpen && zoomPercent === 100
+                          ? '1020px'
+                          : undefined,
+                    }}
                     className="transition-all duration-150 mx-auto"
                     onDoubleClick={() =>
                       setZoomPercent((z) => (z === 100 ? 150 : 100))
@@ -2158,114 +2325,41 @@ export default function MangaVisionStudioPage() {
                         className="block w-full h-auto rounded-lg shadow-2xl select-none"
                       />
 
-                      {/* Live In-Place Japanese Speech Bubble Typesetting Layer */}
+                      {/* Live In-Place Zero-Clip Japanese Speech Bubble Typesetting Layer */}
                       {showJapaneseOverlays &&
                         currentPage.status === 'ready' &&
                         pageOverlayBubbles.map((bubble) => {
                           if (!isValidBubbleBox2d(bubble.box_2d)) return null;
-                          const [ymin, xmin, ymax, xmax] = bubble.box_2d;
                           const bKey = `p${currentPage.page_number}_b${bubble.bubble_index}`;
-                          const isPlayingThis = playingBubbleKey === bKey;
-                          const isSelectedThis = selectedOverlayBubbleKey === bKey;
-                          const isHoveredThis = hoveredBubbleKey === bKey;
-                          const isHighlighted =
-                            isPlayingThis || isSelectedThis || isHoveredThis;
-
-                          const isDarkBubble = bubble.bubble_bg === 'black';
-                          const shapeRadiusClass =
-                            bubble.bubble_shape === 'rectangle'
-                              ? 'rounded-md'
-                              : bubble.bubble_shape === 'spiky'
-                              ? 'rounded-[28%]'
-                              : 'rounded-[38%]';
-
-                          const hasAnyVisibleRuby =
-                            furiganaMode !== 'off' &&
-                            (bubble.words || []).some((w) =>
-                              shouldShowTokenFurigana(w)
-                            );
-
-                          const adaptiveFontSize = computeAdaptiveBubbleFontSizePx(
-                            bubble,
-                            bubble.box_2d,
-                            renderedImgSize.width,
-                            renderedImgSize.height,
-                            hasAnyVisibleRuby,
-                            bubbleDirection
-                          );
-
-                          const baseFeatherShadow = isDarkBubble
-                            ? '0 0 6px 3px rgba(10,10,10,0.95)'
-                            : '0 0 6px 4px rgba(255,255,255,0.96)';
-
-                          const combinedShadow = isHighlighted
-                            ? `0 0 16px rgba(99,102,241,0.55), ${baseFeatherShadow}`
-                            : baseFeatherShadow;
 
                           return (
-                            <button
+                            <MangaBubblePatch
                               key={bKey}
-                              type="button"
-                              dir="ltr"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              bubble={bubble}
+                              box2d={bubble.box_2d}
+                              bubbleKey={bKey}
+                              direction={bubbleDirection}
+                              bubbleFontScale={bubbleFontScale}
+                              magnifierEnabled={magnifierEnabled}
+                              isPeekingOriginal={isPeekingOriginal}
+                              isPlaying={playingBubbleKey === bKey}
+                              isSelected={selectedOverlayBubbleKey === bKey}
+                              isHovered={hoveredBubbleKey === bKey}
+                              renderedImgWidth={renderedImgSize.width}
+                              renderedImgHeight={renderedImgSize.height}
+                              shouldShowTokenFurigana={shouldShowTokenFurigana}
+                              onSelect={() =>
                                 handleClickPageBubbleOverlay(
                                   currentPage.page_number,
                                   bubble
-                                );
-                              }}
-                              onMouseEnter={() => setHoveredBubbleKey(bKey)}
-                              onMouseLeave={() =>
-                                setHoveredBubbleKey((curr) =>
-                                  curr === bKey ? null : curr
                                 )
                               }
-                              title={`${bubble.speaker_name_he || 'דמות'}: ${bubble.translation_hebrew} (לחץ להשמעה ולניתוח מילים)`}
-                              style={{
-                                top: `${(ymin / 10).toFixed(2)}%`,
-                                left: `${(xmin / 10).toFixed(2)}%`,
-                                height: `${((ymax - ymin) / 10).toFixed(2)}%`,
-                                width: `${((xmax - xmin) / 10).toFixed(2)}%`,
-                                backgroundColor: isDarkBubble ? '#0a0a0a' : '#ffffff',
-                                color: isDarkBubble ? '#ffffff' : '#0f172a',
-                                boxShadow: combinedShadow,
-                                fontSize: adaptiveFontSize,
-                              }}
-                              className={`absolute flex items-center justify-center text-center overflow-hidden p-[2px] cursor-pointer transition-all duration-150 font-jp manga-bubble-patch ${shapeRadiusClass} ${
-                                isPeekingOriginal
-                                  ? 'opacity-0 pointer-events-none'
-                                  : 'opacity-100'
-                              } ${
-                                isHighlighted
-                                  ? 'ring-2 ring-indigo-500 z-20 scale-[1.02]'
-                                  : 'z-10 hover:ring-2 hover:ring-indigo-400/80'
-                              }`}
-                            >
-                              <span
-                                className={`max-w-full max-h-full overflow-hidden inline-block ${
-                                  bubbleDirection === 'vertical'
-                                    ? 'manga-bubble-vertical'
-                                    : 'manga-bubble-horizontal'
-                                }`}
-                              >
-                                {(bubble.words || []).length > 0
-                                  ? bubble.words.map((w, wIdx) => {
-                                      if (w.type === 'punctuation') {
-                                        return <span key={wIdx}>{w.kanji}</span>;
-                                      }
-                                      const showRuby = shouldShowTokenFurigana(w);
-                                      return showRuby ? (
-                                        <ruby key={wIdx}>
-                                          {w.kanji}
-                                          <rt>{w.reading}</rt>
-                                        </ruby>
-                                      ) : (
-                                        <span key={wIdx}>{w.kanji}</span>
-                                      );
-                                    })
-                                  : bubble.japanese}
-                              </span>
-                            </button>
+                              onHoverChange={(hovered) =>
+                                setHoveredBubbleKey((curr) =>
+                                  hovered ? bKey : curr === bKey ? null : curr
+                                )
+                              }
+                            />
                           );
                         })}
                     </div>
@@ -2279,6 +2373,94 @@ export default function MangaVisionStudioPage() {
                   </div>
                 )}
               </div>
+
+              {/* Quick Bubble Inspector Bar when in 100% Wide Mode (`isWideMangaMode && !isWideStudyDrawerOpen`) */}
+              {isWideMangaMode &&
+                !isWideStudyDrawerOpen &&
+                activeSelectedOverlayBubble &&
+                currentPage && (
+                  <div className="px-4 py-3 border-t border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-slate-900/95 flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-black flex items-center justify-center">
+                          {activeSelectedOverlayBubble.bubble_index}
+                        </span>
+                        <span className="text-xs font-extrabold text-indigo-800 dark:text-indigo-300">
+                          {activeSelectedOverlayBubble.speaker_name_he || 'דמות'}:
+                        </span>
+                        <span className="text-xs sm:text-sm text-gray-800 dark:text-gray-200 font-medium">
+                          {activeSelectedOverlayBubble.translation_hebrew}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handlePlaySingleBubble(
+                              currentPage.page_number,
+                              activeSelectedOverlayBubble
+                            )
+                          }
+                          className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Volume2 size={13} /> השמע שוב
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsWideStudyDrawerOpen(true)}
+                          className="px-2.5 py-1 rounded-lg bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 text-xs font-extrabold cursor-pointer"
+                        >
+                          פתח פאנל סנסיי מלא
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOverlayBubbleKey(null)}
+                          className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Clickable Words in Quick Bubble Bar for Instant SRS Mining in Wide Mode */}
+                    <div
+                      dir="ltr"
+                      className="font-jp flex flex-wrap items-end gap-1.5 pt-0.5 text-lg font-medium text-slate-900 dark:text-slate-100"
+                    >
+                      {activeSelectedOverlayBubble.words.map((w, wIdx) => {
+                        if (w.type === 'punctuation') {
+                          return (
+                            <span key={wIdx} className="text-slate-400">
+                              {w.kanji}
+                            </span>
+                          );
+                        }
+                        const showRuby = shouldShowTokenFurigana(w);
+                        return (
+                          <button
+                            key={wIdx}
+                            type="button"
+                            onClick={() => {
+                              handleOpenWordPopover(w, activeSelectedOverlayBubble);
+                              setIsWideStudyDrawerOpen(true);
+                            }}
+                            className="px-1.5 py-0.5 rounded-lg bg-white/80 dark:bg-slate-800/90 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-slate-200/80 dark:border-slate-700 transition-all cursor-pointer"
+                            title={`${w.lemma} — ${w.meaning} (לחץ לניתוח וכרייה ל-SRS)`}
+                          >
+                            {showRuby ? (
+                              <ruby>
+                                {w.kanji}
+                                <rt>{w.reading}</rt>
+                              </ruby>
+                            ) : (
+                              <span>{w.kanji}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
               {/* Bottom Page Filmstrip */}
               <div className="p-3 bg-gray-50 dark:bg-[#0B0F19] border-t border-gray-200 dark:border-gray-800">
@@ -2332,9 +2514,14 @@ export default function MangaVisionStudioPage() {
             </div>
 
             {/* ============================================================== */}
-            {/* INTERACTIVE COMPANION PANEL WITH 3 TABS (6 COLS)               */}
+            {/* INTERACTIVE COMPANION PANEL WITH 3 TABS (6 COLS OR WIDE DRAWER) */}
             {/* ============================================================== */}
-            <div className="lg:col-span-6 bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 rounded-3xl shadow-sm flex flex-col max-h-[82vh] overflow-hidden relative">
+            {(!isWideMangaMode || isWideStudyDrawerOpen) && (
+            <div
+              className={`${
+                !isWideMangaMode ? 'lg:col-span-6' : 'lg:col-span-4'
+              } bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 rounded-3xl shadow-sm flex flex-col max-h-[82vh] overflow-hidden relative transition-all duration-200`}
+            >
               {/* Companion Tabs + Smart Controls */}
               <div className="p-3.5 sm:p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-[#0B0F19]/60 flex flex-col gap-3">
                 {/* 3 Studio Tabs */}
@@ -3335,6 +3522,7 @@ export default function MangaVisionStudioPage() {
                 )}
               </AnimatePresence>
             </div>
+            )}
           </div>
         </div>
       )}
