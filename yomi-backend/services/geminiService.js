@@ -1203,6 +1203,12 @@ const MANGA_PAGE_VISION_SCHEMA = {
         properties: {
           bubble_index: { type: SchemaType.INTEGER },
           bubble_type: { type: SchemaType.STRING },
+          box_2d: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.INTEGER },
+          },
+          bubble_bg: { type: SchemaType.STRING },
+          bubble_shape: { type: SchemaType.STRING },
           speaker_id: { type: SchemaType.STRING },
           speaker_name_ja: { type: SchemaType.STRING },
           speaker_name_he: { type: SchemaType.STRING },
@@ -1220,6 +1226,9 @@ const MANGA_PAGE_VISION_SCHEMA = {
         required: [
           'bubble_index',
           'bubble_type',
+          'box_2d',
+          'bubble_bg',
+          'bubble_shape',
           'speaker_id',
           'speaker_name_ja',
           'speaker_name_he',
@@ -1275,7 +1284,47 @@ const MANGA_DUB_EVAL_SCHEMA = {
 };
 
 /**
- * Analyzes a single Manga Page image using Gemini 2.5 Flash Multimodal Vision
+ * Validates and clamps a Gemini Vision `box_2d` `[ymin, xmin, ymax, xmax]` array
+ * to `[0, 1000]`. Returns `null` if malformed or degenerate so callers gracefully
+ * skip invalid overlay coordinates.
+ */
+function sanitizeBubbleBox2d(rawBox, allowBox = true) {
+  if (!allowBox || !Array.isArray(rawBox) || rawBox.length < 4) {
+    return null;
+  }
+  const nums = rawBox.slice(0, 4).map((v) => Number(v));
+  if (nums.some((n) => !Number.isFinite(n))) {
+    return null;
+  }
+  const clamp1000 = (v) => Math.max(0, Math.min(1000, Math.round(v)));
+  const ymin = clamp1000(nums[0]);
+  const xmin = clamp1000(nums[1]);
+  const ymax = clamp1000(nums[2]);
+  const xmax = clamp1000(nums[3]);
+
+  // Require positive non-trivial dimensions (at least 1.2% of page width & height)
+  if (ymax - ymin < 12 || xmax - xmin < 12) {
+    return null;
+  }
+  return [ymin, xmin, ymax, xmax];
+}
+
+function sanitizeBubbleBg(rawBg) {
+  return String(rawBg || '').trim().toLowerCase() === 'black' ? 'black' : 'white';
+}
+
+function sanitizeBubbleShape(rawShape, bubbleType = 'speech') {
+  const s = String(rawShape || '').trim().toLowerCase();
+  if (s === 'oval' || s === 'rectangle' || s === 'spiky') {
+    return s;
+  }
+  if (bubbleType === 'narration') return 'rectangle';
+  if (bubbleType === 'shout') return 'spiky';
+  return 'oval';
+}
+
+/**
+ * Analyzes a single Manga Page image using Gemini Multimodal Vision
  * + deterministic local Kuromoji enrichment (`enrichWordsWithKuromoji`).
  */
 async function analyzeMangaPageVision({
@@ -1339,6 +1388,18 @@ Analyze the attached manga page image${chapterTitle ? ` from "${chapterTitle}"` 
 ${knownRosterHint}
 
 ${trackInstructions}
+
+SPEECH BUBBLE BOUNDING BOXES FOR LIVE IN-PLACE TYPESETTING ("box_2d", "bubble_bg", "bubble_shape"):
+For EVERY bubble in "bubbles":
+1. "box_2d": Return an array of 4 integers [ymin, xmin, ymax, xmax] normalized to 0–1000 (where 0 is the top/left edge and 1000 is the bottom/right edge of the full page image).
+   - CRITICAL ACCURACY RULE: "box_2d" MUST tightly cover the **original text area inside the speech bubble** (covering 100% of the printed English/Hebrew/Japanese letters inside that bubble while leaving the black comic ink outline of the bubble visible around it!) so our frontend typeset patch cleanly masks the original letters without erasing surrounding manga artwork or panel borders.
+   - Keep "box_2d" tight and accurate for spiky/scream bubbles, standard oval speech balloons, and rectangular narration boxes alike.
+   - Only if there is no page image attached (pure raw text script), return [0, 0, 0, 0].
+2. "bubble_bg": Return strictly "white" if the bubble interior fill is white/light with dark text (standard comic bubble), or "black" if the bubble interior fill is black/dark with white/light text.
+3. "bubble_shape": Return strictly one of:
+   - "oval" (standard round/elliptical/cloud speech or thought bubble)
+   - "spiky" (jagged/burst shout or scream bubble)
+   - "rectangle" (square/rectangular narration caption box)
 
 MORPHOLOGICAL TOKENIZATION ("words" array per bubble):
 For EVERY bubble's "japanese" text:
@@ -1448,13 +1509,25 @@ PAGE SUMMARY:
         });
       }
 
+      const normalizedBubbleType = ['speech', 'shout', 'thought', 'narration'].includes(
+        String(b.bubble_type || '').toLowerCase()
+      )
+        ? String(b.bubble_type).toLowerCase()
+        : 'speech';
+
+      const validatedBox2d = sanitizeBubbleBox2d(b.box_2d, hasRasterImage);
+      const validatedBubbleBg = sanitizeBubbleBg(b.bubble_bg);
+      const validatedBubbleShape = sanitizeBubbleShape(
+        b.bubble_shape,
+        normalizedBubbleType
+      );
+
       enrichedBubbles.push({
         bubble_index: i + 1,
-        bubble_type: ['speech', 'shout', 'thought', 'narration'].includes(
-          String(b.bubble_type || '').toLowerCase()
-        )
-          ? String(b.bubble_type).toLowerCase()
-          : 'speech',
+        bubble_type: normalizedBubbleType,
+        ...(validatedBox2d ? { box_2d: validatedBox2d } : {}),
+        bubble_bg: validatedBubbleBg,
+        bubble_shape: validatedBubbleShape,
         speaker_id: speakerId,
         speaker_name_ja: String(b.speaker_name_ja || '').trim(),
         speaker_name_he: String(b.speaker_name_he || '').trim(),
@@ -1582,6 +1655,9 @@ module.exports = {
   evaluateTrainerOutput,
   analyzeMangaPageVision,
   evaluateMangaDubAttempt,
+  sanitizeBubbleBox2d,
+  sanitizeBubbleBg,
+  sanitizeBubbleShape,
   generateContentWithCascade,
   formatCleanGeminiError,
   GEMINI_MODEL_CASCADE,

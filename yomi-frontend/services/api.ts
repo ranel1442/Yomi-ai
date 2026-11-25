@@ -653,6 +653,8 @@ export const getTrainerStats = async (userId: string): Promise<TrainerStats> => 
 
 export type MangaSourceLanguage = 'he_en_translated' | 'ja_raw';
 export type MangaPageStatus = 'pending' | 'analyzing' | 'ready' | 'error';
+export type MangaBubbleBg = 'white' | 'black';
+export type MangaBubbleShape = 'oval' | 'rectangle' | 'spiky';
 
 export interface MangaBubbleWord {
   kanji: string;
@@ -666,6 +668,9 @@ export interface MangaBubbleWord {
 export interface MangaSpeechBubble {
   bubble_index: number;
   bubble_type: 'speech' | 'shout' | 'thought' | 'narration';
+  box_2d?: [number, number, number, number];
+  bubble_bg?: MangaBubbleBg;
+  bubble_shape?: MangaBubbleShape;
   speaker_id: string;
   speaker_name_ja: string;
   speaker_name_he: string;
@@ -679,6 +684,8 @@ export interface MangaSpeechBubble {
   words: MangaBubbleWord[];
   audio_url?: string | null;
 }
+
+export type MangaBubble = MangaSpeechBubble;
 
 export interface MangaSfxItem {
   sfx_text: string;

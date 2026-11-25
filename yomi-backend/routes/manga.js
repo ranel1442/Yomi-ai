@@ -9,6 +9,9 @@ const {
   analyzeMangaPageVision,
   evaluateMangaDubAttempt,
   formatCleanGeminiError,
+  sanitizeBubbleBox2d,
+  sanitizeBubbleBg,
+  sanitizeBubbleShape,
 } = require('../services/geminiService');
 const { generateAudio, assignCharacterVoices } = require('../services/audioService');
 const { getUserEntitlements } = require('../services/entitlementsService');
@@ -308,8 +311,18 @@ async function executePageVisionAnalysis(chapterId, targetPageNum, forceReanalyz
             }
           }
 
+          const sanitizedBox2d = sanitizeBubbleBox2d(bubble.box_2d, !isSvgPage);
+          const sanitizedBg = sanitizeBubbleBg(bubble.bubble_bg);
+          const sanitizedShape = sanitizeBubbleShape(
+            bubble.bubble_shape,
+            bubble.bubble_type
+          );
+
           return {
             ...bubble,
+            ...(sanitizedBox2d ? { box_2d: sanitizedBox2d } : { box_2d: undefined }),
+            bubble_bg: sanitizedBg,
+            bubble_shape: sanitizedShape,
             speaker_id: canonicalSpeakerId,
             speaker_name_ja: speaker?.name_ja || bubble.speaker_name_ja,
             speaker_name_he: speaker?.name_he || bubble.speaker_name_he,

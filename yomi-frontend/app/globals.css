@@ -95,6 +95,52 @@ rt {
   color: #cbd5e1;
 }
 
+/* ========================================================================== */
+/* Live Manga Speech Bubble Typesetting Overlays                              */
+/* ========================================================================== */
+.manga-bubble-patch {
+  font-family: var(--font-noto-sans-jp), 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', sans-serif;
+  font-weight: 700;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "palt" 1;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.manga-bubble-patch ruby {
+  ruby-align: center;
+}
+
+.manga-bubble-patch rt {
+  font-size: 0.55em !important;
+  font-weight: 600 !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0 !important;
+  color: inherit !important;
+  opacity: 0.86;
+  user-select: none;
+}
+
+.manga-bubble-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  line-height: 1.42;
+  letter-spacing: 0.02em;
+}
+
+.manga-bubble-vertical ruby {
+  ruby-position: over;
+}
+
+.manga-bubble-horizontal {
+  writing-mode: horizontal-tb;
+  line-height: 1.38;
+  letter-spacing: 0.01em;
+}
+
 /* Subtle custom scrollbars for dark/light themes */
 ::-webkit-scrollbar {
   width: 8px;

@@ -259,6 +259,65 @@ function sanitizeMangaErrorMessage(raw?: string): string {
   return raw;
 }
 
+function isValidBubbleBox2d(
+  box?: [number, number, number, number] | null
+): box is [number, number, number, number] {
+  if (!Array.isArray(box) || box.length !== 4) return false;
+  const [ymin, xmin, ymax, xmax] = box;
+  if (
+    !Number.isFinite(ymin) ||
+    !Number.isFinite(xmin) ||
+    !Number.isFinite(ymax) ||
+    !Number.isFinite(xmax)
+  ) {
+    return false;
+  }
+  if (ymin < 0 || xmin < 0 || ymax > 1000 || xmax > 1000) return false;
+  return ymax - ymin >= 12 && xmax - xmin >= 12;
+}
+
+function computeAdaptiveBubbleFontSizePx(
+  bubble: MangaSpeechBubble,
+  box: [number, number, number, number],
+  imgWidth: number,
+  imgHeight: number,
+  hasRubyInBubble: boolean,
+  direction: 'vertical' | 'horizontal'
+): string {
+  const [ymin, xmin, ymax, xmax] = box;
+  const wNorm = Math.max(12, xmax - xmin) / 1000;
+  const hNorm = Math.max(12, ymax - ymin) / 1000;
+
+  const effImgW = imgWidth > 40 ? imgWidth : 520;
+  const effImgH = imgHeight > 40 ? imgHeight : 740;
+
+  const boxW = Math.max(22, wNorm * effImgW);
+  const boxH = Math.max(22, hNorm * effImgH);
+
+  const charCount = Math.max(1, Array.from(bubble.japanese || '').length);
+  const lineSpacingFactor = hasRubyInBubble ? 1.62 : 1.26;
+  const usableArea = boxW * boxH * 0.56;
+
+  const areaBasedPx = Math.sqrt(usableArea / (charCount * lineSpacingFactor));
+  const shortestSide = Math.min(boxW, boxH);
+  const crossAxisCap = shortestSide * (charCount <= 4 ? 0.42 : 0.35);
+
+  // Ensure single-line/column short shouts never clip along the reading axis
+  const mainAxisLen = direction === 'vertical' ? boxH : boxW;
+  const crossAxisLen = direction === 'vertical' ? boxW : boxH;
+  const estLines = Math.max(1, Math.ceil((charCount * 12) / Math.max(24, mainAxisLen)));
+  const crossFitCap =
+    estLines === 1
+      ? crossAxisLen * (hasRubyInBubble ? 0.54 : 0.68)
+      : (crossAxisLen / estLines) * 0.85;
+
+  const clamped = Math.max(
+    8.5,
+    Math.min(24, areaBasedPx, Math.max(10, crossAxisCap), Math.max(9.5, crossFitCap))
+  );
+  return `${clamped.toFixed(1)}px`;
+}
+
 export default function MangaVisionStudioPage() {
   const { user, isPro, isAdmin, loading: authLoading } = useAuth();
   const { lookupWord, upsertCardInMap } = useVocabularyMap(user?.id);
@@ -292,6 +351,21 @@ export default function MangaVisionStudioPage() {
   const [expandedSenseiNotes, setExpandedSenseiNotes] = useState<Record<string, boolean>>(
     {}
   );
+
+  // Live In-Place Japanese Speech Bubble Overlay States
+  const [showJapaneseOverlays, setShowJapaneseOverlays] = useState<boolean>(true);
+  const [isPeekingOriginal, setIsPeekingOriginal] = useState<boolean>(false);
+  const [bubbleDirection, setBubbleDirection] = useState<'vertical' | 'horizontal'>(
+    'vertical'
+  );
+  const [selectedOverlayBubbleKey, setSelectedOverlayBubbleKey] = useState<string | null>(
+    null
+  );
+  const [hoveredBubbleKey, setHoveredBubbleKey] = useState<string | null>(null);
+  const [renderedImgSize, setRenderedImgSize] = useState<{
+    width: number;
+    height: number;
+  }>({ width: 0, height: 0 });
 
   // Sequential Vision Queue States (Smart 2-Page Lookahead by default; optional Full-Chapter Background Queue)
   const [isQueueRunning, setIsQueueRunning] = useState<boolean>(false);
@@ -345,6 +419,7 @@ export default function MangaVisionStudioPage() {
   const recognitionRef = useRef<WebSpeechRecognition | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const docInputRef = useRef<HTMLInputElement | null>(null);
+  const mangaImgRef = useRef<HTMLImageElement | null>(null);
   const bubbleCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -452,14 +527,66 @@ export default function MangaVisionStudioPage() {
     return activeChapter.pages.filter((p) => p.status === 'ready').length;
   }, [activeChapter]);
 
-  // Reset dub bubble index when switching page
+  // Reset dub bubble index & selection when switching page
   useEffect(() => {
     setDubBubbleIndex(0);
     setDubInput('');
     setDubEvalResult(null);
     setShowDubVocabHint(false);
     setSelectedToken(null);
+    setSelectedOverlayBubbleKey(null);
+    setHoveredBubbleKey(null);
+    setIsPeekingOriginal(false);
   }, [currentPageNum, activeChapter?.id]);
+
+  // Default Japanese bubble overlays ON for translated chapters (`he_en_translated`)
+  useEffect(() => {
+    if (!activeChapter) return;
+    setShowJapaneseOverlays(activeChapter.source_language === 'he_en_translated');
+  }, [activeChapter?.id, activeChapter?.source_language]);
+
+  // Track exact rendered dimensions of the active manga page `<img>` across zoom & resize
+  useEffect(() => {
+    const imgEl = mangaImgRef.current;
+    if (!imgEl || showUploaderPanel) return;
+
+    const updateSize = () => {
+      if (!mangaImgRef.current) return;
+      setRenderedImgSize({
+        width: mangaImgRef.current.clientWidth,
+        height: mangaImgRef.current.clientHeight,
+      });
+    };
+
+    updateSize();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => updateSize());
+      observer.observe(imgEl);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, [currentPage?.image_url, zoomPercent, showUploaderPanel, activeChapter?.id]);
+
+  const pageOverlayBubbles = useMemo(() => {
+    return (currentPage?.bubbles || []).filter(
+      (b) => isValidBubbleBox2d(b.box_2d) && Boolean(b.japanese)
+    );
+  }, [currentPage?.bubbles]);
+
+  const hasPageOverlays = pageOverlayBubbles.length > 0;
+
+  const isLegacyPageMissingBoxes = useMemo(() => {
+    if (!activeChapter || !currentPage) return false;
+    return (
+      currentPage.status === 'ready' &&
+      activeChapter.source_language === 'he_en_translated' &&
+      (currentPage.bubbles?.length || 0) > 0 &&
+      !hasPageOverlays
+    );
+  }, [activeChapter, currentPage, hasPageOverlays]);
 
   // Keyboard Manga Page Navigation (Left Arrow = Next Page in RTL Manga, Right Arrow = Prev Page)
   useEffect(() => {
@@ -892,6 +1019,31 @@ export default function MangaVisionStudioPage() {
     if (url) {
       await playUrlPromise(url, key);
     }
+  };
+
+  const handleClickPageBubbleOverlay = async (
+    pageNumber: number,
+    bubble: MangaSpeechBubble
+  ) => {
+    const bKey = `p${pageNumber}_b${bubble.bubble_index}`;
+    setSelectedOverlayBubbleKey(bKey);
+
+    if (activeTab !== 'script') {
+      setActiveTab('script');
+      setTimeout(() => {
+        bubbleCardRefs.current[bKey]?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 60);
+    } else {
+      bubbleCardRefs.current[bKey]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+
+    await handlePlaySingleBubble(pageNumber, bubble);
   };
 
   const handleStartCinemaPlayback = async (scope: 'page' | 'chapter') => {
@@ -1886,6 +2038,99 @@ export default function MangaVisionStudioPage() {
                 </div>
               </div>
 
+              {/* Live Manga Typesetting Controls Strip (Above Manga Image) */}
+              <div className="px-3.5 py-2 border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-[#111827] flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowJapaneseOverlays((v) => !v)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                      showJapaneseOverlays
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'bg-gray-50 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <span>🇯🇵 הדבקת יפנית על המנגה</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-md font-black ${
+                        showJapaneseOverlays
+                          ? 'bg-white/20 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                      }`}
+                    >
+                      {showJapaneseOverlays ? 'פעיל' : 'כבוי'}
+                    </span>
+                  </button>
+
+                  {showJapaneseOverlays && hasPageOverlays && (
+                    <button
+                      type="button"
+                      onPointerDown={() => setIsPeekingOriginal(true)}
+                      onPointerUp={() => setIsPeekingOriginal(false)}
+                      onPointerLeave={() => setIsPeekingOriginal(false)}
+                      onPointerCancel={() => setIsPeekingOriginal(false)}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border select-none transition-all flex items-center gap-1 cursor-pointer ${
+                        isPeekingOriginal
+                          ? 'bg-amber-500 text-white border-amber-500 shadow'
+                          : 'bg-gray-50 dark:bg-gray-800/80 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-indigo-400'
+                      }`}
+                      title="החזק לחוץ כדי להציץ זמנית בטקסט המקורי שבבועות"
+                    >
+                      <span>👁️ הצץ למקור</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Bubble Text Direction Toggle: Vertical (Authentic Manga) vs Horizontal */}
+                <div className="flex items-center gap-1 bg-gray-100 dark:bg-[#0B0F19] p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setBubbleDirection('vertical')}
+                    className={`px-2.5 py-1 rounded-lg font-extrabold transition-all cursor-pointer ${
+                      bubbleDirection === 'vertical'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    אנכי (מנגה מקורית)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBubbleDirection('horizontal')}
+                    className={`px-2.5 py-1 rounded-lg font-extrabold transition-all cursor-pointer ${
+                      bubbleDirection === 'horizontal'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    אופקי (קריאה קלה)
+                  </button>
+                </div>
+              </div>
+
+              {/* Subtle Hint Banner for Pages Analyzed Before `box_2d` Update */}
+              {isLegacyPageMissingBoxes && currentPage && (
+                <div className="px-3.5 py-2 bg-amber-50/90 dark:bg-amber-950/35 border-b border-amber-200/80 dark:border-amber-800/50 flex items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200">
+                  <span className="font-medium">
+                    עמוד זה נותח לפני שדרוג הבועות — לחץ על &apos;נתח עמוד זה מחדש&apos; כדי להדביק עליו את היפנית.
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentlyAnalyzingPage === currentPage.page_number}
+                    onClick={() =>
+                      analyzeSinglePageNow(
+                        activeChapter.id,
+                        currentPage.page_number,
+                        true
+                      )
+                    }
+                    className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-[11px] disabled:opacity-50 cursor-pointer"
+                  >
+                    נתח עמוד זה מחדש
+                  </button>
+                </div>
+              )}
+
               {/* Manga Image Viewport (Responsive Mobile & Desktop Height) */}
               <div className="relative bg-slate-950 h-[52vh] sm:h-[64vh] min-h-[340px] sm:min-h-[460px] max-h-[760px] overflow-auto flex items-start justify-center p-2.5 sm:p-3">
                 {currentPage ? (
@@ -1896,12 +2141,134 @@ export default function MangaVisionStudioPage() {
                       setZoomPercent((z) => (z === 100 ? 150 : 100))
                     }
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={currentPage.image_url}
-                      alt={`Page ${currentPage.page_number}`}
-                      className="w-full h-auto rounded-lg shadow-2xl select-none"
-                    />
+                    {/* Exact-Fit Image Wrapper: 100% locked to displayed `<img>` width & height at every zoom! */}
+                    <div className="relative inline-block w-full leading-[0] select-none">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        ref={mangaImgRef}
+                        src={currentPage.image_url}
+                        alt={`Page ${currentPage.page_number}`}
+                        onLoad={(e) => {
+                          const el = e.currentTarget;
+                          setRenderedImgSize({
+                            width: el.clientWidth,
+                            height: el.clientHeight,
+                          });
+                        }}
+                        className="block w-full h-auto rounded-lg shadow-2xl select-none"
+                      />
+
+                      {/* Live In-Place Japanese Speech Bubble Typesetting Layer */}
+                      {showJapaneseOverlays &&
+                        currentPage.status === 'ready' &&
+                        pageOverlayBubbles.map((bubble) => {
+                          if (!isValidBubbleBox2d(bubble.box_2d)) return null;
+                          const [ymin, xmin, ymax, xmax] = bubble.box_2d;
+                          const bKey = `p${currentPage.page_number}_b${bubble.bubble_index}`;
+                          const isPlayingThis = playingBubbleKey === bKey;
+                          const isSelectedThis = selectedOverlayBubbleKey === bKey;
+                          const isHoveredThis = hoveredBubbleKey === bKey;
+                          const isHighlighted =
+                            isPlayingThis || isSelectedThis || isHoveredThis;
+
+                          const isDarkBubble = bubble.bubble_bg === 'black';
+                          const shapeRadiusClass =
+                            bubble.bubble_shape === 'rectangle'
+                              ? 'rounded-md'
+                              : bubble.bubble_shape === 'spiky'
+                              ? 'rounded-[28%]'
+                              : 'rounded-[38%]';
+
+                          const hasAnyVisibleRuby =
+                            furiganaMode !== 'off' &&
+                            (bubble.words || []).some((w) =>
+                              shouldShowTokenFurigana(w)
+                            );
+
+                          const adaptiveFontSize = computeAdaptiveBubbleFontSizePx(
+                            bubble,
+                            bubble.box_2d,
+                            renderedImgSize.width,
+                            renderedImgSize.height,
+                            hasAnyVisibleRuby,
+                            bubbleDirection
+                          );
+
+                          const baseFeatherShadow = isDarkBubble
+                            ? '0 0 6px 3px rgba(10,10,10,0.95)'
+                            : '0 0 6px 4px rgba(255,255,255,0.96)';
+
+                          const combinedShadow = isHighlighted
+                            ? `0 0 16px rgba(99,102,241,0.55), ${baseFeatherShadow}`
+                            : baseFeatherShadow;
+
+                          return (
+                            <button
+                              key={bKey}
+                              type="button"
+                              dir="ltr"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleClickPageBubbleOverlay(
+                                  currentPage.page_number,
+                                  bubble
+                                );
+                              }}
+                              onMouseEnter={() => setHoveredBubbleKey(bKey)}
+                              onMouseLeave={() =>
+                                setHoveredBubbleKey((curr) =>
+                                  curr === bKey ? null : curr
+                                )
+                              }
+                              title={`${bubble.speaker_name_he || 'דמות'}: ${bubble.translation_hebrew} (לחץ להשמעה ולניתוח מילים)`}
+                              style={{
+                                top: `${(ymin / 10).toFixed(2)}%`,
+                                left: `${(xmin / 10).toFixed(2)}%`,
+                                height: `${((ymax - ymin) / 10).toFixed(2)}%`,
+                                width: `${((xmax - xmin) / 10).toFixed(2)}%`,
+                                backgroundColor: isDarkBubble ? '#0a0a0a' : '#ffffff',
+                                color: isDarkBubble ? '#ffffff' : '#0f172a',
+                                boxShadow: combinedShadow,
+                                fontSize: adaptiveFontSize,
+                              }}
+                              className={`absolute flex items-center justify-center text-center overflow-hidden p-[2px] cursor-pointer transition-all duration-150 font-jp manga-bubble-patch ${shapeRadiusClass} ${
+                                isPeekingOriginal
+                                  ? 'opacity-0 pointer-events-none'
+                                  : 'opacity-100'
+                              } ${
+                                isHighlighted
+                                  ? 'ring-2 ring-indigo-500 z-20 scale-[1.02]'
+                                  : 'z-10 hover:ring-2 hover:ring-indigo-400/80'
+                              }`}
+                            >
+                              <span
+                                className={`max-w-full max-h-full overflow-hidden inline-block ${
+                                  bubbleDirection === 'vertical'
+                                    ? 'manga-bubble-vertical'
+                                    : 'manga-bubble-horizontal'
+                                }`}
+                              >
+                                {(bubble.words || []).length > 0
+                                  ? bubble.words.map((w, wIdx) => {
+                                      if (w.type === 'punctuation') {
+                                        return <span key={wIdx}>{w.kanji}</span>;
+                                      }
+                                      const showRuby = shouldShowTokenFurigana(w);
+                                      return showRuby ? (
+                                        <ruby key={wIdx}>
+                                          {w.kanji}
+                                          <rt>{w.reading}</rt>
+                                        </ruby>
+                                      ) : (
+                                        <span key={wIdx}>{w.kanji}</span>
+                                      );
+                                    })
+                                  : bubble.japanese}
+                              </span>
+                            </button>
+                          );
+                        })}
+                    </div>
                   </div>
                 ) : null}
 
@@ -2179,9 +2546,18 @@ export default function MangaVisionStudioPage() {
                             ref={(el) => {
                               bubbleCardRefs.current[bKey] = el;
                             }}
+                            onMouseEnter={() => setHoveredBubbleKey(bKey)}
+                            onMouseLeave={() =>
+                              setHoveredBubbleKey((curr) =>
+                                curr === bKey ? null : curr
+                              )
+                            }
                             className={`rounded-2xl border p-4 transition-all bg-white dark:bg-[#0F172A] ${
                               isPlayingThis
                                 ? theme.activeRing
+                                : selectedOverlayBubbleKey === bKey ||
+                                  hoveredBubbleKey === bKey
+                                ? 'ring-2 ring-indigo-500/70 border-indigo-400 dark:border-indigo-500 shadow-[0_0_14px_rgba(99,102,241,0.22)]'
                                 : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
                             }`}
                           >
